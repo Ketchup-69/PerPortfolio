@@ -290,18 +290,37 @@
     }
   }
 
+  const DQ = new URLSearchParams(location.search).get("dither") !== "bayer"; // high-quality error-diffusion dither by default; ?dither=bayer for the chunky ordered look
+  const rampLerp = (ramp, v) => { const f = clamp(v, 0, 1) * (ramp.length - 1), i = Math.min(ramp.length - 2, Math.floor(f)), t = f - i; return [lerp(ramp[i][0], ramp[i + 1][0], t), lerp(ramp[i][1], ramp[i + 1][1], t), lerp(ramp[i][2], ramp[i + 1][2], t)]; };
+  const shade = (ramp, v, x, y) => (DQ ? rampLerp(ramp, v) : pick(ramp, v, x, y));
+  function fsQuantize(cv, pal) {
+    const w = cv.width, h = cv.height, g2 = cv.getContext("2d"), im = g2.getImageData(0, 0, w, h), d = im.data;
+    const er = new Float32Array(w * h * 3);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x, k = i * 4;
+      if (d[k + 3] === 0) continue;
+      const r = d[k] + er[i * 3], gg = d[k + 1] + er[i * 3 + 1], b = d[k + 2] + er[i * 3 + 2];
+      let best = pal[0], bd = 1e9;
+      for (const p of pal) { const dd = (p[0] - r) ** 2 + (p[1] - gg) ** 2 + (p[2] - b) ** 2; if (dd < bd) { bd = dd; best = p; } }
+      d[k] = best[0]; d[k + 1] = best[1]; d[k + 2] = best[2];
+      const e = [r - best[0], gg - best[1], b - best[2]];
+      const push = (xx, yy, f) => { if (xx < 0 || xx >= w || yy >= h) return; const j = (yy * w + xx); if (d[j * 4 + 3] === 0) return; er[j * 3] += e[0] * f; er[j * 3 + 1] += e[1] * f; er[j * 3 + 2] += e[2] * f; };
+      push(x + 1, y, 7 / 16); push(x - 1, y + 1, 3 / 16); push(x, y + 1, 5 / 16); push(x + 1, y + 1, 1 / 16);
+    }
+    g2.putImageData(im, 0, 0);
+  }
+
   const Scene = (() => {
     const cv = $("#scene"), ctx = cv.getContext("2d");
     let S = 3, W = 0, H = 0, backdrop = null, earth = null, ov = null, og = null, oimg = null, obuf = null;
     let stars = [];
     const cam = { hz: 0.6, h: 1.3, sp: 3, z: 0 };
-    let landStart = -1, visible = false;
+    let landStart = -1, visible = false, hzOverride = null;
     const P = {
       void: hex3("#020409"), deep: hex3("#060b1c"), navy: hex3("#0a1633"), navy2: hex3("#13244f"), navy3: hex3("#1e3a78"),
       blue: hex3("#3d7bff"), ice: hex3("#9cc4ff"), white: hex3("#e8f0ff"), acc: hex3("#ff5a24"), accD: hex3("#8a2a0e"), accS: hex3("#ff9a74"),
       land1: hex3("#3a2c24"), land2: hex3("#7a5c3e"), land3: hex3("#b08a5c"), teal: hex3("#1f5a5a"),
     };
-    const GRID = pk(95, 184, 224), GRID_B = pk(143, 233, 255), HZ = pk(255, 181, 154), HZG = pk(255, 90, 36), FOG = pk(7, 18, 40), WHITE = pk(255, 255, 255);
 
     function buildBackdrop() {
       const pad = 30, w = W + pad * 2, h = Math.ceil(H * 1.6);
@@ -313,10 +332,12 @@
         const mask = Math.max(0, 1 - dl / 0.3) * (nx > 0.35 ? 1 : 0.2) * (ny < 1.1 ? 1 : Math.max(0, 1 - (ny - 1.1) * 3));
         if (mask > 0) v += mask * smooth(clamp((fbm(x * 0.022, y * 0.03, 5) - 0.38) / 0.4, 0, 1)) * 0.7;
         const wm = Math.max(0, 1 - Math.hypot(nx - 0.3, ny - 0.13) / 0.12);
-        if (wm > 0 && bay(x, y) < wm * 0.18) return P.accD;
-        return pick(ramp, clamp(v, 0, 1), x, y);
+        if (!DQ && wm > 0 && bay(x, y) < wm * 0.18) return P.accD;
+        if (DQ && wm > 0) v += wm * 0.08;
+        return shade(ramp, clamp(v, 0, 1), x, y);
       });
       backdrop.pad = pad;
+      if (DQ) fsQuantize(backdrop, ramp);
       stars = [];
       let seed = 11;
       const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -339,9 +360,9 @@
           const rim = R - d;
           if (rim < 1.5) return P.ice;
           if (rim < 3.5 && bay(x, y) < 0.5) return P.blue;
-          if (cl > 0.6) return pick(cloud, clamp(((cl - 0.6) / 0.35) * light, 0, 1), x, y);
-          if (ln > 0.57) return pick(land, clamp(((ln - 0.57) / 0.25) * light, 0, 1), x, y);
-          return pick(ocean, clamp(light * 0.7 + cl * 0.2, 0, 1), x, y);
+          if (cl > 0.6) return shade(cloud, clamp(((cl - 0.6) / 0.35) * light, 0, 1), x, y);
+          if (ln > 0.57) return shade(land, clamp(((ln - 0.57) / 0.25) * light, 0, 1), x, y);
+          return shade(ocean, clamp(light * 0.7 + cl * 0.2, 0, 1), x, y);
         }
         const a = d - R;
         if (a < 10) {
@@ -352,16 +373,16 @@
         }
         return null;
       });
+      if (DQ) fsQuantize(earth, [...ocean, ...cloud, ...land, P.ice, P.blue, P.navy3]);
     }
 
     function resize() {
       const iw = innerWidth, ih = innerHeight;
-      S = iw >= 1600 ? 4 : iw >= 900 ? 3 : 2;
+      S = DQ ? (iw >= 1600 ? 2 : iw >= 900 ? 2 : 1) : iw >= 1600 ? 4 : iw >= 900 ? 3 : 2;
       W = Math.ceil(iw / S); H = Math.ceil(ih / S);
       cv.width = W; cv.height = H;
       cv.style.width = W * S + "px"; cv.style.height = H * S + "px";
       ctx.imageSmoothingEnabled = false;
-      ov = mk(W, H); og = ov.getContext("2d"); oimg = og.createImageData(W, H); obuf = new Uint32Array(oimg.data.buffer);
       buildBackdrop(); buildEarth();
       computeKeys();
     }
@@ -432,37 +453,12 @@
       return keys[keys.length - 1].v;
     }
 
-    const CYC = [pk(255, 90, 36), pk(255, 90, 36), pk(143, 233, 255)], CYD = [pk(150, 52, 20), pk(150, 52, 20), pk(60, 120, 150)];
-    const cycles = CYC.map((c, i) => ({ c, d: CYD[i], x: (i - 1) * 4, z: 16 + i * 7, dir: i % 2 ? [0, 1] : [0, -1], trail: [] }));
-    cycles.forEach((cy) => cy.trail.push([cy.x, cy.z]));
-    function stepCycles(dt) {
-      for (const cy of cycles) {
-        const nx = cy.x + cy.dir[0] * 5.5 * dt, nz = cy.z + cy.dir[1] * 5.5 * dt;
-        const crossed = Math.floor(cy.x) !== Math.floor(nx) || Math.floor(cy.z) !== Math.floor(nz);
-        cy.x = nx; cy.z = nz;
-        const out = Math.abs(cy.x) > 11 || cy.z < 13 || cy.z > 50;
-        if (crossed && (out || Math.random() < 0.08)) {
-          cy.x = Math.round(cy.x); cy.z = Math.round(cy.z);
-          cy.trail.push([cy.x, cy.z]);
-          let d = cy.dir[0] ? [[0, 1], [0, -1]][Math.random() < 0.5 ? 0 : 1] : [[1, 0], [-1, 0]][Math.random() < 0.5 ? 0 : 1];
-          if (out) { if (cy.x > 11) d = [-1, 0]; else if (cy.x < -11) d = [1, 0]; else if (cy.z > 50) d = [0, -1]; else if (cy.z < 13) d = [0, 1]; }
-          cy.dir = d;
-        }
-        let len = Math.abs(cy.x - cy.trail[cy.trail.length - 1][0]) + Math.abs(cy.z - cy.trail[cy.trail.length - 1][1]);
-        for (let i = cy.trail.length - 1; i > 0; i--) {
-          const a = cy.trail[i], b = cy.trail[i - 1], seg = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-          if (len + seg > 16) { const tt = (16 - len) / (seg || 1); cy.trail.splice(0, i - 1); cy.trail[0] = [a[0] + (b[0] - a[0]) * tt, a[1] + (b[1] - a[1]) * tt]; break; }
-          len += seg;
-        }
-      }
-    }
-
     let last = performance.now();
     function draw(now = performance.now()) {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       if (!visible) return;
       const t = now / 1000;
-      const tg = target(scrollY + innerHeight * 0.5), k = reduceMotion ? 1 : 0.07;
+      const tg0 = target(scrollY + innerHeight * 0.5), tg = hzOverride === null ? tg0 : { ...tg0, hz: hzOverride }, k = reduceMotion ? 1 : 0.12;
       cam.hz = lerp(cam.hz, tg.hz, k); cam.h = lerp(cam.h, tg.h, k); cam.sp = lerp(cam.sp, tg.sp + Math.min(14, Math.abs(state.vel) * 0.25), k);
       let hz = cam.hz, h = cam.h;
       if (landStart >= 0) {
@@ -470,7 +466,7 @@
         hz = lerp(1.15, hz, e); h = lerp(9, h, e);
         if (lt >= 1) landStart = -1;
       }
-      if (!reduceMotion) { cam.z += cam.sp * dt; stepCycles(dt); }
+
       const mx = state.smx - 0.5, my = state.smy - 0.5, sl = scrollY / S;
       const hzY = Math.round(H * (hz - my * 0.04));
       const vx = W / 2 - mx * W * 0.14, f = H * 0.95;
@@ -499,64 +495,13 @@
 
       const dim = clamp((scrollY - innerHeight * 0.5) / innerHeight, 0, 1) * 0.45;
       if (dim > 0) { ctx.fillStyle = `rgba(2,4,9,${dim.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
-      // overlay: grid + horizon + light cycles (1-bit dither)
-      obuf.fill(0);
-      const plot = (x, y, c) => { if (x >= 0 && x < W && y >= 0 && y < H) obuf[y * W + x] = c; };
-      if (hzY < H) {
-        const zAt = (y) => (h * f) / Math.max(0.5, y - hzY + 0.5);
-        const fadeZ = 24;
-        for (let i = -30; i <= 30; i++) {
-          let zn = Math.max(0.5, i ? (Math.abs(i) * f) / (W * 1.4) : 0.5);
-          if (H > hzY) zn = Math.max(zn, (h * f) / (H - hzY));
-          const a = [vx + (i * f) / zn, hzY + (h * f) / zn], b = [vx + (i * f) / 60, hzY + (h * f) / 60];
-          const base = i === 0 ? 1 : 0.85;
-          bres(a[0], a[1], b[0], b[1], (x, y) => {
-            const al = clamp(1 - zAt(y) / fadeZ, 0, 1) * base;
-            if (bay(x, y) < al * al) plot(x, y, bay(x, y) < al * 0.5 ? GRID_B : GRID);
-          });
-        }
-        const off = cam.z % 1;
-        let lastY = -1;
-        for (let z = 1 - off + 1; z < 60; z += 1) {
-          const y = Math.round(hzY + (h * f) / z);
-          if (y >= H || y === lastY) continue;
-          lastY = y;
-          const al = clamp(1 - z / fadeZ, 0, 1);
-          const xl = Math.max(0, Math.round(vx - (30 * f) / z)), xr = Math.min(W - 1, Math.round(vx + (30 * f) / z));
-          for (let x = xl; x <= xr; x++) if (bay(x, y) < al * al) plot(x, y, bay(x, y) < al * 0.5 ? GRID_B : GRID);
-        }
-        // cycles
-        for (const cy of cycles) {
-          const pts = [...cy.trail, [cy.x, cy.z]];
-          if (pts.some((p) => p[1] < 9)) continue;
-          for (let i = 1; i < pts.length; i++) {
-            const A = pts[i - 1], B = pts[i];
-            const a = [vx + (A[0] * f) / A[1], hzY + (h * f) / A[1]], b = [vx + (B[0] * f) / B[1], hzY + (h * f) / B[1]];
-            bres(a[0], a[1], b[0], b[1], (x, y) => {
-              const z = zAt(y), hp = Math.max(1, Math.round((0.32 * f) / z));
-              for (let k2 = 1; k2 < hp; k2++) if (bay(x, y - k2) < 0.4) plot(x, y - k2, cy.d);
-              plot(x, y - hp, cy.c); plot(x, y, cy.c);
-            });
-          }
-          const hx = Math.round(vx + (cy.x * f) / cy.z), hy = Math.round(hzY + (h * f) / cy.z);
-          plot(hx, hy, WHITE); plot(hx + 1, hy, WHITE); plot(hx, hy - 1, WHITE); plot(hx + 1, hy - 1, WHITE);
-        }
-        // fog just under the horizon
-        for (let k2 = 1; k2 <= 4; k2++) for (let x = 0; x < W; x++) if (bay(x, hzY + k2) < 0.8 - k2 * 0.16) plot(x, hzY + k2, FOG);
-      }
-      if (hzY >= 0 && hzY < H) {
-        for (let x = 0; x < W; x++) plot(x, hzY, HZ);
-        for (let k2 = 1; k2 <= 7; k2++) for (let x = 0; x < W; x++) if (bay(x, hzY - k2) < (1 - k2 / 8) * 0.55) plot(x, hzY - k2, HZG);
-      }
-      og.putImageData(oimg, 0, 0);
-      ctx.drawImage(ov, 0, 0);
     }
 
     addEventListener("resize", resize);
     addEventListener("load", computeKeys);
     document.fonts?.ready.then(computeKeys);
     resize();
-    return { draw, show() { visible = true; }, land() { visible = true; landStart = performance.now(); }, recompute: computeKeys };
+    return { draw, show() { visible = true; }, land() { visible = true; landStart = performance.now(); }, recompute: computeKeys, override(v) { hzOverride = v; } };
   })();
 
   /* ----------------------------------------------------------
@@ -1120,115 +1065,6 @@
   })();
 
   /* ----------------------------------------------------------
-     MOLECULES — C60 and ATP as rotating line drawings
-     ---------------------------------------------------------- */
-  (() => {
-    const PHI = (1 + Math.sqrt(5)) / 2;
-    function c60() {
-      const base = [[0, 1, 3 * PHI], [1, 2 + PHI, 2 * PHI], [PHI, 2, 2 * PHI + 1]];
-      const set = new Map();
-      for (const b of base) for (let r = 0; r < 3; r++) {
-        const v = [b[r % 3], b[(r + 1) % 3], b[(r + 2) % 3]];
-        for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
-          const p = [v[0] * sx, v[1] * sy, v[2] * sz];
-          set.set(p.map((n) => n.toFixed(4)).join(","), p);
-        }
-      }
-      const atoms = [...set.values()].map((p) => ({ p: p.map((n) => n / 4.95), e: "C" }));
-      const bonds = [];
-      for (let i = 0; i < atoms.length; i++) for (let j = i + 1; j < atoms.length; j++) {
-        const a = atoms[i].p, b = atoms[j].p;
-        if (Math.abs(Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) - 2 / 4.95) < 0.01) bonds.push([i, j, 1]);
-      }
-      return { atoms, bonds, spin: true };
-    }
-    function atp() {
-      const A = {
-        N1: [-0.866, 0.5], C2: [-0.866, -0.5], N3: [0, -1], C4: [0.866, -0.5], C5: [0.866, 0.5], C6: [0, 1], N6: [0, 2],
-        N7: [1.817, 0.809], C8: [2.405, 0], N9: [1.817, -0.809],
-        C1r: [2.3, -1.75], O4r: [3.3, -1.5], C4r: [3.75, -2.4], C3r: [3.05, -3.15], C2r: [2.15, -2.75], O2r: [1.4, -3.35], O3r: [3.2, -4.1],
-        C5r: [4.8, -2.25], O5r: [5.4, -1.45],
-        Pa: [6.4, -1.25], Oa1: [6.6, -0.25], Oa2: [6.2, -2.25], Oab: [7.4, -1.45],
-        Pb: [8.4, -1.25], Ob1: [8.6, -0.25], Ob2: [8.2, -2.25], Obg: [9.4, -1.45],
-        Pg: [10.4, -1.25], Og1: [10.6, -0.25], Og2: [10.2, -2.25], Og3: [11.4, -1.05],
-      };
-      const B = [
-        ["N1", "C2", 1], ["C2", "N3", 2], ["N3", "C4", 1], ["C4", "C5", 2], ["C5", "C6", 1], ["C6", "N1", 2], ["C6", "N6", 1],
-        ["C5", "N7", 1], ["N7", "C8", 2], ["C8", "N9", 1], ["N9", "C4", 1], ["N9", "C1r", 1],
-        ["C1r", "O4r", 1], ["O4r", "C4r", 1], ["C4r", "C3r", 1], ["C3r", "C2r", 1], ["C2r", "C1r", 1], ["C2r", "O2r", 1], ["C3r", "O3r", 1],
-        ["C4r", "C5r", 1], ["C5r", "O5r", 1], ["O5r", "Pa", 1], ["Pa", "Oa1", 2], ["Pa", "Oa2", 1], ["Pa", "Oab", 1], ["Oab", "Pb", 1],
-        ["Pb", "Ob1", 2], ["Pb", "Ob2", 1], ["Pb", "Obg", 1], ["Obg", "Pg", 1], ["Pg", "Og1", 2], ["Pg", "Og2", 1], ["Pg", "Og3", 1],
-      ];
-      const names = Object.keys(A);
-      let cx = 0, cy = 0;
-      names.forEach((n) => { cx += A[n][0]; cy += A[n][1]; });
-      cx /= names.length; cy /= names.length;
-      const atoms = names.map((n) => {
-        const [x, y] = A[n];
-        const z = Math.sin((x - cx) * 0.55) * 0.9 + (n === "C2r" ? 0.5 : 0) + (n.startsWith("O") && n.length === 3 && /[12]$/.test(n) ? (n.endsWith("1") ? 0.6 : -0.6) : 0);
-        return { p: [(x - cx) / 6.4, -(y - cy) / 6.4, z / 6.4], e: n.match(/^[A-Z]/)[0] };
-      });
-      const bonds = B.map(([a, b, o]) => [names.indexOf(a), names.indexOf(b), o]);
-      return { atoms, bonds, spin: false };
-    }
-    const COL = { C: [242, 236, 226], N: [143, 233, 255], O: [255, 154, 116], P: [255, 90, 36] };
-    const RAD = { C: 1.7, N: 2.1, O: 2, P: 3.6 };
-
-    $$("canvas.mol").forEach((cv) => {
-      const mol = cv.dataset.mol === "atp" ? atp() : c60();
-      const ctx = cv.getContext("2d");
-      let w = 0, h = 0, dpr = 1, vis = false, hover = 0;
-      const size = () => { dpr = 1 / 3; const r = cv.getBoundingClientRect(); w = r.width; h = r.height; cv.width = Math.max(1, Math.round(w * dpr)); cv.height = Math.max(1, Math.round(h * dpr)); };
-      size(); addEventListener("resize", size);
-      new IntersectionObserver((en) => { vis = en[0].isIntersecting; if (vis) requestAnimationFrame(loop); }).observe(cv);
-      cv.parentElement.addEventListener("pointerenter", () => (hover = 1));
-      cv.parentElement.addEventListener("pointerleave", () => (hover = 0));
-      let spd = 0;
-      function loop(now) {
-        if (!vis) return;
-        spd = lerp(spd, hover ? 1 : 0, 0.05);
-        const t = now / 1000;
-        const ry = mol.spin ? t * (0.35 + spd * 0.9) + scrollY * 0.002 : Math.sin(t * 0.45) * 0.75 + scrollY * 0.0015;
-        const rx = (mol.spin ? 0.35 : 0.25) + (state.smy - 0.5) * 0.5;
-        const cY = Math.cos(ry), sY = Math.sin(ry), cX = Math.cos(rx), sX = Math.sin(rx);
-        const S = Math.min(w, h) * (mol.spin ? 0.42 : 0.44);
-        const pr = mol.atoms.map((a) => {
-          let [x, y, z] = a.p;
-          const x1 = x * cY + z * sY, z1 = -x * sY + z * cY;
-          const y1 = y * cX - z1 * sX, z2 = y * sX + z1 * cX;
-          const persp = 1 / (1 + z2 * 0.5);
-          return { x: w / 2 + x1 * S * persp, y: h / 2 + y1 * S * persp, z: z2, s: persp, e: a.e };
-        });
-        const q = (v) => Math.round(v * dpr);
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, cv.width, cv.height);
-        const dot = (x, y, c, a) => { ctx.fillStyle = `rgba(${c},${a})`; ctx.fillRect(x, y, 1, 1); };
-        // floor ring (dotted)
-        for (let a = 0; a < 6.283; a += 0.12) dot(q(w / 2 + Math.cos(a) * S * 0.8), q(h * 0.9 + Math.sin(a) * S * 0.12), "143,233,255", 0.25);
-        for (const [i2, j2, o] of mol.bonds) {
-          const a = pr[i2], b = pr[j2];
-          const depth = clamp(0.55 - (a.z + b.z) * 0.6, 0.15, 1);
-          const off = o === 2 ? [[-1, 0], [1, 0]] : [[0, 0]];
-          for (const [ox, oy] of off) {
-            const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
-            const nx = Math.round((-dy / l) * ox * 1.2), ny = Math.round((dx / l) * ox * 1.2);
-            bres(q(a.x) + nx, q(a.y) + ny, q(b.x) + nx, q(b.y) + ny, (x, y) => dot(x, y, "143,233,255", depth * 0.9));
-          }
-        }
-        pr.map((p) => p).sort((A, B) => B.z - A.z).forEach((p) => {
-          const c = COL[p.e] || COL.C, depth = clamp(0.7 - p.z * 0.7, 0.3, 1);
-          const sz = p.e === "P" ? 3 : p.s > 1.05 ? 2 : p.e === "C" && !mol.spin ? 2 : 1;
-          const x = q(p.x) - (sz >> 1), y = q(p.y) - (sz >> 1);
-          if (p.e === "P") { ctx.fillStyle = "rgba(255,90,36,0.35)"; ctx.fillRect(x - 1, y - 1, sz + 2, sz + 2); }
-          ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${depth})`;
-          ctx.fillRect(x, y, sz, sz);
-        });
-        requestAnimationFrame(loop);
-      }
-    });
-  })();
-
-  /* ----------------------------------------------------------
      PIXEL CHIPS — drawn into tiny canvases, scaled up crisp
      ---------------------------------------------------------- */
   const CHIP_COL = { red: ["#c61e2e", "#7d0f1b"], acc: ["#ff5a24", "#8a2a0e"], navy: ["#1e3a78", "#0f1f45"], cyan: ["#2f8fb0", "#14465a"] };
@@ -1260,6 +1096,143 @@
       drawChip(o.cv, o.a, o.col);
     }
   }
+
+  /* ----------------------------------------------------------
+     CINEMATICS — scroll-locked camera moves.
+     Approach: walk across the floor, reach the table, sit, look
+     down until the felt fills the view.
+     Depart: stand up, turn, walk to the cashier, push through
+     the window into the cash-out.
+     ---------------------------------------------------------- */
+  const Cine = (() => {
+    const roots = $$(".cine");
+    if (reduceMotion || !roots.length) { roots.forEach((r) => r.remove()); return null; }
+    const LANT = ["...#####...", "..#######..", ".ooaaaaaoo.", "oooaayaaooo", "ooaayyyaaoo", "ooayyyyyaoo", "ooayyWyyaoo", "ooayyyyyaoo", "ooayyyyyaoo", "ooaayyyaaoo", "oooaayaaooo", "rooaaaaaoor", ".rrooooorr.", "..#######..", "...#####...", ".....r.....", ".....r....."];
+    const LMAP = { "#": "#2a0e10", o: "#a3300f", a: "#ff5a24", y: "#ff9a5e", W: "#ffe2d6", r: "#c61e2e" };
+    function lantern() {
+      const c = mk(11, 17), x = c.getContext("2d");
+      LANT.forEach((row, yy) => [...row].forEach((ch, xx) => { if (LMAP[ch]) { x.fillStyle = LMAP[ch]; x.fillRect(xx, yy, 1, 1); } }));
+      c.className = "cine-obj c-lantern";
+      return c;
+    }
+    function cage() {
+      // cashier booth, 120 x 90; the window is left transparent so we can pass through it
+      const w = 120, h = 90, c = mk(w, h), x = c.getContext("2d");
+      const F = (col, a, b, cw, ch) => { x.fillStyle = col; x.fillRect(a, b, cw, ch); };
+      F("#140a0e", 0, 0, w, h);
+      for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) if (bay(xx, yy) < 0.12) F("#20101a", xx, yy, 1, 1);
+      F("#ff5a24", 0, 0, w, 1); F("#3a0f0c", 0, 1, w, 1);
+      // sign
+      F("#05060b", 30, 6, 60, 14); F("#ff5a24", 30, 6, 60, 1); F("#ff5a24", 30, 19, 60, 1);
+      x.font = "8px Silkscreen, monospace"; x.textAlign = "center"; x.textBaseline = "middle";
+      x.fillStyle = "#5a1a0c"; x.fillText("CASHIER", 61, 14); x.fillStyle = "#ffe2d6"; x.fillText("CASHIER", 60, 13);
+      for (let i = 0; i < 14; i++) F(i % 2 ? "#fff3c4" : "#5a2416", 31 + i * 4.3, 4, 1, 1);
+      // window: frame + bars, glass left clear
+      const wx = 36, wy = 26, ww = 48, wh = 36;
+      F("#9aa3b5", wx - 3, wy - 3, ww + 6, wh + 6); F("#5a6275", wx - 2, wy - 2, ww + 4, wh + 4);
+      x.clearRect(wx, wy, ww, wh);
+      for (let i = 1; i < 8; i++) { F("#c9a24a", wx + i * 6, wy, 1, wh); F("#7a5e22", wx + i * 6 + 1, wy, 1, wh); }
+      F("#c9a24a", wx, wy + 10, ww, 1);
+      // counter ledge + lamp + side pillars
+      F("#3a1a14", wx - 10, wy + wh + 3, ww + 20, 5); F("#9aa3b5", wx - 10, wy + wh + 3, ww + 20, 1);
+      F("#0b0d14", wx - 8, wy + wh + 8, ww + 16, 2);
+      F("#2a0f12", 8, 24, 10, 66); F("#ff5a24", 8, 24, 1, 66); F("#2a0f12", w - 18, 24, 10, 66); F("#ff5a24", w - 9, 24, 1, 66);
+      F("#ffcc33", 22, 30, 3, 2); F("#c98a12", 23, 32, 1, 6);
+      // a stack of chips on the ledge
+      for (let i = 0; i < 4; i++) { F(i % 2 ? "#f2ece2" : "#c61e2e", 72, wy + wh + 1 - i * 2, 7, 2); }
+      c.className = "cine-obj c-cage";
+      c.win = { x: (wx + ww / 2) / w, y: (wy + wh / 2) / h, w: ww / w };
+      return c;
+    }
+    function table(big) {
+      const d = document.createElement("div");
+      d.className = "cine-obj ptable" + (big ? " is-big" : "");
+      let inner = "";
+      if (big) {
+        const cards = [[34, 46, -9], [42, 44, 4], [50, 47, -3], [58, 45, 7], [66, 46, -6]].map(([cx, cy, r]) => `<i class="pt-card" style="--x:${cx}%;--y:${cy}%;--r:${r}deg"></i>`).join("");
+        inner = `<span class="pt-print">THE HOUSE ALWAYS SHIPS</span>${cards}<canvas class="pt-chip" width="16" height="16" style="--x:22%;--y:60%"></canvas><canvas class="pt-chip" width="16" height="16" style="--x:76%;--y:36%"></canvas><canvas class="pt-chip" width="16" height="16" style="--x:72%;--y:64%"></canvas>`;
+      }
+      d.innerHTML = `<div class="pt-felt">${inner}</div>`;
+      $$(".pt-chip", d).forEach((c, i) => drawChip(c, i * 0.7, ["red", "acc", "navy"][i % 3]));
+      return d;
+    }
+    const GHOSTS = [{ x: -1.15, z: -1900 }, { x: 1.2, z: -2900 }, { x: -1.3, z: -4100 }, { x: 1.25, z: -5100 }];
+    const LANTS = [{ x: -0.32, y: -0.36, z: -700 }, { x: 0.3, y: -0.42, z: -1500 }, { x: -0.16, y: -0.34, z: -2300 }, { x: 0.38, y: -0.38, z: -3100 }, { x: -0.42, y: -0.4, z: -3900 }, { x: 0.1, y: -0.36, z: -4700 }];
+    function build(root, kind) {
+      const st = $(".cine-stage", root);
+      const o = { root, st, cap: $(".cine-cap", root), ghosts: [], lants: [] };
+      GHOSTS.forEach((g) => { const el = table(false); st.insertBefore(el, o.cap); o.ghosts.push({ el, ...g }); });
+      o.main = table(true); st.insertBefore(o.main, o.cap);
+      if (kind === "d") { o.cage = cage(); st.insertBefore(o.cage, o.cap); }
+      LANTS.forEach((l) => { const el = lantern(); st.insertBefore(el, o.cap); o.lants.push({ el, ...l }); });
+      return o;
+    }
+    const A = build($("#approach"), "a"), D = build($("#depart"), "d");
+    const T = (el, x, y, z, rx = 0, ry = 0, op = 1) => {
+      el.style.transform = `translate(-50%, -50%) translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, ${z.toFixed(1)}px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
+      el.style.opacity = op.toFixed(3);
+      el.style.visibility = op < 0.01 ? "hidden" : "visible";
+    };
+    const prog = (root) => { const r = root.getBoundingClientRect(), tot = r.height - innerHeight; return { p: clamp(-r.top / tot, 0, 1), on: r.top < innerHeight && r.bottom > 0 }; };
+    const seg = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
+
+    function passers(o, walk, vw, vh, bob, lift, fade) {
+      for (const g of o.ghosts) {
+        const z = g.z + walk * 3600;
+        T(g.el, g.x * vw, 0.42 * vh + bob - lift * vh * 0.15, z, 80, 0, (z > 350 ? 0 : clamp((z + 5600) / 1200, 0, 1)) * (1 - fade));
+      }
+      for (const l of o.lants) {
+        const z = l.z + walk * 3600;
+        T(l.el, l.x * vw, l.y * vh + bob * 0.5 - lift * vh * 0.9, z, 0, 0, (z > 520 ? 0 : clamp((z + 5400) / 1200, 0, 1)) * (1 - fade));
+      }
+    }
+
+    return {
+      frame(now) {
+        const vw = innerWidth, vh = innerHeight;
+        let hzOverride = null;
+        // ---- approach: walk in, sit, look down
+        const a = prog(A.root);
+        if (a.on) {
+          const p = a.p;
+          const walk = easeInOut(seg(p, 0, 0.55)), sit = easeInOut(seg(p, 0.55, 0.75)), look = easeInOut(seg(p, 0.75, 0.96));
+          const bob = Math.sin(walk * Math.PI * 10) * 7 * (walk > 0 && walk < 1 ? 1 : 0);
+          let y = lerp(0.42 * vh, 0.56 * vh, walk), z = lerp(-3400, -700, walk), rx = lerp(82, 76, walk);
+          y = lerp(y, 0.2 * vh, sit); z = lerp(z, -260, sit); rx = lerp(rx, 50, sit);
+          y = lerp(y, 0, look); z = lerp(z, 0, look); rx = lerp(rx, 0, look);
+          T(A.main, 0, y + bob, z, rx);
+          passers(A, walk, vw, vh, bob, sit * 0.5 + look, look);
+          A.cap.style.opacity = (seg(p, 0.03, 0.12) * (1 - seg(p, 0.6, 0.72))).toFixed(3);
+          A.cap.dataset.step = p < 0.55 ? "walk" : p < 0.75 ? "sit" : "look";
+          hzOverride = lerp(lerp(0.6, 0.5, walk), -0.45, look);
+        }
+        // ---- depart: stand, turn, walk to the cashier, push through
+        const d = prog(D.root);
+        if (d.on) {
+          const p = d.p;
+          const stand = easeInOut(seg(p, 0, 0.22)), turn = easeInOut(seg(p, 0.2, 0.4)), walk = easeInOut(seg(p, 0.38, 0.84)), push = easeIn(seg(p, 0.84, 1));
+          const bob = Math.sin(walk * Math.PI * 10) * 7 * (walk > 0 && walk < 1 ? 1 : 0);
+          let y = lerp(0, 0.56 * vh, stand), z = lerp(0, -700, stand), rx = lerp(0, 76, stand), x = 0, ry = 0;
+          x = lerp(0, -1.25 * vw, turn) - walk * 0.5 * vw; z = lerp(z, -1100, turn) + walk * 1500; ry = lerp(0, 26, turn);
+          T(D.main, x, y + bob, z, rx, ry, z > 300 ? 0 : 1);
+          const cg = D.cage, cw = cg.offsetWidth || 1200;
+          const zEnd = 900 - 900 / Math.max(1.2, (vw * 1.15) / (cg.win.w * cw));
+          let cx = lerp(3.4 * vw, 0.3 * vw, turn), cz = -3800, cry = lerp(-42, -16, turn);
+          cx = lerp(cx, 0, walk); cz = lerp(cz, -560, walk); cry = lerp(cry, 0, walk);
+          cz = lerp(cz, zEnd, push);
+          const winOff = (0.5 - cg.win.y) * cg.offsetHeight;
+          T(cg, cx, winOff * (0.4 + push * 0.6) + bob * (1 - push), cz, 0, cry, seg(p, 0.2, 0.3) * (1 - seg(p, 0.97, 1)));
+          // the walk: tables and lanterns pass on the way to the cage
+          for (const g of D.ghosts) { const gz = g.z + 1400 + walk * 3600; T(g.el, g.x * vw - turn * 0.4 * vw, 0.42 * vh + bob, gz, 80, 0, (gz > 350 ? 0 : clamp((gz + 5600) / 1200, 0, 1)) * turn); }
+          for (const l of D.lants) { const lz = l.z + 900 + walk * 3600; T(l.el, l.x * vw - turn * 0.3 * vw, l.y * vh + bob * 0.5 - (1 - stand) * vh * 0.8, lz, 0, 0, (lz > 520 ? 0 : clamp((lz + 5400) / 1200, 0, 1)) * stand); }
+          D.cap.style.opacity = (seg(p, 0.42, 0.52) * (1 - seg(p, 0.76, 0.84))).toFixed(3);
+          D.cap.dataset.step = "walk";
+          hzOverride = lerp(-0.45, 0.56, stand);
+        }
+        Scene.override(hzOverride);
+      },
+    };
+  })();
 
   /* ----------------------------------------------------------
      DOM PARALLAX
@@ -1337,36 +1310,7 @@
     }
   }
 
-  function transitions() {
-    if (reduceMotion) return;
-    const vh = innerHeight;
-    // the table: approach at a low angle, sit (flatten), then stand and walk away (tilt back)
-    const r = stage.getBoundingClientRect();
-    if (r.bottom > -vh && r.top < vh * 2) {
-      const pin = easeOut(clamp((vh * 1.0 - r.top) / (vh * 0.85), 0, 1));
-      const pout = easeIn(clamp((vh * 0.7 - r.bottom) / (vh * 0.6), 0, 1));
-      if (pout > 0.001) {
-        stage.style.transformOrigin = "50% 100%";
-        stage.style.transform = `translateY(${(-pout * 6).toFixed(2)}vh) rotateX(${(pout * 58).toFixed(2)}deg) scale(${(1 - pout * 0.14).toFixed(4)})`;
-        stage.style.opacity = (1 - pout * 0.75).toFixed(3);
-      } else if (pin < 0.999) {
-        stage.style.transformOrigin = "50% 0%";
-        stage.style.transform = `translateY(${((1 - pin) * 14).toFixed(2)}vh) rotateX(${((1 - pin) * 66).toFixed(2)}deg) scale(${(0.84 + 0.16 * pin).toFixed(4)})`;
-        stage.style.opacity = (0.25 + 0.75 * pin).toFixed(3);
-      } else if (stage.style.transform !== "none") {
-        stage.style.transform = "none"; stage.style.opacity = "1";
-      }
-    }
-    // cash out: walk up to the cage, bars part
-    const cg = $("#cashGrid"), cage = $("#cage"), cr = $("#cashout").getBoundingClientRect();
-    if (cr.top < vh * 1.4 && cr.bottom > 0) {
-      const p = easeOut(clamp((vh * 1.05 - cr.top) / (vh * 0.9), 0, 1));
-      cg.style.transform = p > 0.999 ? "none" : `translate3d(0, ${((1 - p) * 60).toFixed(1)}px, ${((1 - p) * -520).toFixed(1)}px)`;
-      cg.style.opacity = (0.15 + 0.85 * p).toFixed(3);
-      cage.style.setProperty("--open", (p * 380).toFixed(1));
-    }
-  }
-  $$("#cage i").forEach((b, i) => b.style.setProperty("--dir", String((i - 2) * 1.2)));
+  function transitions() { if (Cine) Cine.frame(); }
 
   function tableFrame(now) {
     const r = table.getBoundingClientRect();
