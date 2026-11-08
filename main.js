@@ -106,7 +106,7 @@
       Object.assign(toastEl.style, {
         position: "fixed", left: "50%", bottom: "28px", transform: "translateX(-50%)", zIndex: 200,
         fontFamily: "var(--pixel)", fontSize: "0.72rem", letterSpacing: "0.1em", textTransform: "uppercase",
-        padding: "12px 16px", background: "var(--ivory)", color: "var(--void)", boxShadow: "4px 4px 0 var(--ember)",
+        padding: "12px 16px", background: "var(--ivory)", color: "var(--void)", boxShadow: "4px 4px 0 var(--gold)",
         transition: "opacity .3s", opacity: 0, pointerEvents: "none",
       });
       document.body.appendChild(toastEl);
@@ -280,25 +280,211 @@
   });
 
   /* ----------------------------------------------------------
-     GATE
+     LOADER — a dithered octahedron (the diamond, in three dimensions)
+     rendered in 1-bit ordered dither, with a single gold ball on a
+     roulette orbit. Exits through a Bayer dissolve.
      ---------------------------------------------------------- */
+  const Gate = (() => {
+    const gate = $("#gate");
+    const cv = $("#gateCanvas");
+    if (!gate || !cv) return null;
+    const g = cv.getContext("2d");
+    const countEl = $("#gateCount"), barEl = $("#gateBar");
+    let S = 3, W = 0, H = 0, img, data, cover;
+    let running = true, ready = false, leaving = -1, onDone = null;
+    const t0 = performance.now();
+    let loaded = false;
+    Promise.all([
+      new Promise((r) => (document.readyState === "complete" ? r() : addEventListener("load", r, { once: true }))),
+      document.fonts ? document.fonts.ready : Promise.resolve(),
+    ]).then(() => (loaded = true));
+
+    // 8x8 Bayer
+    const B8 = (() => {
+      const m = [[0, 2], [3, 1]];
+      let b = m;
+      for (let n = 2; n < 8; n *= 2) {
+        const nb = [];
+        for (let y = 0; y < n * 2; y++) { nb[y] = []; for (let x = 0; x < n * 2; x++) nb[y][x] = 4 * b[y % n][x % n] + m[(y / n) | 0][(x / n) | 0]; }
+        b = nb;
+      }
+      return b.flat().map((v) => (v + 0.5) / 64);
+    })();
+    const bay = (x, y) => B8[((y & 7) << 3) | (x & 7)];
+
+    const IV = [242, 233, 216], GD = [255, 194, 74], GH = [255, 236, 190], VD = [5, 7, 15], DIM = [30, 58, 120];
+    const N = [];
+    for (const a of [-1, 1]) for (const b of [-1, 1]) for (const c of [-1, 1]) N.push([a, b, c]);
+    const L = (() => { const v = [-0.45, -0.65, -0.62]; const m = Math.hypot(...v); return v.map((k) => k / m); })();
+
+    function resize() {
+      const iw = innerWidth, ih = innerHeight;
+      S = iw >= 1500 ? 4 : iw >= 800 ? 3 : 2;
+      W = Math.ceil(iw / S); H = Math.ceil(ih / S);
+      cv.width = W; cv.height = H;
+      cv.style.width = W * S + "px"; cv.style.height = H * S + "px";
+      img = g.createImageData(W, H); data = img.data;
+      cover = new Uint8Array(W * H);
+    }
+    resize();
+    addEventListener("resize", resize);
+
+    let ax = 0.6, ay = 0.4, mx = 0.5, my = 0.5;
+    const onMove = (e) => { mx = e.clientX / innerWidth; my = e.clientY / innerHeight; };
+    addEventListener("pointermove", onMove, { passive: true });
+
+    const put = (i, c, a = 255) => { const k = i * 4; data[k] = c[0]; data[k + 1] = c[1]; data[k + 2] = c[2]; data[k + 3] = a; };
+    const ease = (t) => 1 - Math.pow(1 - t, 3);
+
+    let last = performance.now(), prog = 0;
+    function frame(now) {
+      if (!running) return;
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const t = (now - t0) / 1000;
+
+      // progress: real load + a minimum dwell so the piece is seen
+      const target = Math.min(t / 2.6, loaded ? 1 : 0.88);
+      prog = Math.min(1, prog + (target - prog) * 0.08 + 0.0015);
+      if (prog > 0.999) prog = 1;
+      const pct = Math.round(prog * 100);
+      countEl.textContent = String(pct).padStart(3, "0");
+      barEl.style.width = pct + "%";
+      if (pct === 100 && !ready) { ready = true; gate.classList.add("is-ready"); }
+
+      // rotation
+      if (!reduceMotion) {
+        ay += dt * (0.32 + (mx - 0.5) * 0.9);
+        ax += ((0.55 + (my - 0.5) * 0.9) - ax) * 0.04;
+      }
+      const ca = Math.cos(ax), sa = Math.sin(ax), cb = Math.cos(ay), sb = Math.sin(ay);
+      // world = Rx(ax) * Ry(ay) * obj ; inverse = Ry(-ay) * Rx(-ax)
+      const toObj = (x, y, z) => { const y1 = ca * y + sa * z, z1 = -sa * y + ca * z; return [cb * x - sb * z1, y1, sb * x + cb * z1]; };
+      const toWorld = (x, y, z) => { const x1 = cb * x + sb * z, z1 = -sb * x + cb * z; return [x1, ca * y - sa * z1, sa * y + ca * z1]; };
+
+      let lt = leaving < 0 ? 0 : Math.min(1, (now - leaving) / 1300);
+      const shrink = leaving < 0 ? 1 : Math.max(0, 1 - ease(Math.min(1, lt / 0.45)));
+      const R = Math.min(W, H) * 0.24 * (0.96 + Math.sin(t * 0.9) * 0.02) * shrink;
+      const cx = W / 2, cy = H * 0.47;
+
+      // background (opaque void, dissolving when leaving)
+      const dis = leaving < 0 ? -1 : (lt - 0.32) / 0.68;
+      const maxD = Math.hypot(W / 2, H / 2);
+      for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i++) {
+        cover[i] = 0;
+        if (dis < 0) { put(i, VD); continue; }
+        const d = Math.hypot(x - cx, y - cy) / maxD;
+        put(i, VD, bay(x, y) > dis * 1.35 - d * 0.35 ? 255 : 0);
+      }
+
+      // floor shadow — sparse dither ellipse
+      if (R > 1) {
+        const sy = cy + R * 1.5, srx = R * 0.95, sry = R * 0.16;
+        for (let y = Math.floor(sy - sry); y <= sy + sry; y++) for (let x = Math.floor(cx - srx); x <= cx + srx; x++) {
+          if (x < 0 || y < 0 || x >= W || y >= H) continue;
+          const e = ((x - cx) / srx) ** 2 + ((y - sy) / sry) ** 2;
+          if (e < 1 && bay(x, y) < (1 - e) * 0.22) put(y * W + x, DIM);
+        }
+      }
+
+      // orbit (roulette ball track) — dotted, behind pass
+      const orx = R * 1.75, ory = R * 0.42, tilt = -0.18;
+      const ct = Math.cos(tilt), st = Math.sin(tilt);
+      const ballA = t * 1.35;
+      const orbitPt = (a) => { const ex = Math.cos(a) * orx, ey = Math.sin(a) * ory; return [cx + ex * ct - ey * st, cy + ex * st + ey * ct, Math.sin(a)]; };
+      if (R > 1) for (let k = 0; k < 220; k += 1) {
+        if (k % 4) continue;
+        const [x, y] = orbitPt((k / 220) * Math.PI * 2);
+        const xi = x | 0, yi = y | 0;
+        if (xi >= 0 && yi >= 0 && xi < W && yi < H) put(yi * W + xi, DIM);
+      }
+
+      // octahedron — analytic ray / 8 half-spaces, orthographic
+      if (R > 1) {
+        const ex = 1.6 / R;
+        const x0 = Math.max(0, Math.floor(cx - R * 1.05)), x1 = Math.min(W - 1, Math.ceil(cx + R * 1.05));
+        const y0 = Math.max(0, Math.floor(cy - R * 1.05)), y1 = Math.min(H - 1, Math.ceil(cy + R * 1.05));
+        const d = toObj(0, 0, 1);
+        for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+          const o = toObj((x - cx) / R, (y - cy) / R, -3);
+          let tin = -1e9, tout = 1e9, ni = -1, miss = false;
+          for (let k = 0; k < 8; k++) {
+            const n = N[k];
+            const nd = n[0] * d[0] + n[1] * d[1] + n[2] * d[2];
+            const no = n[0] * o[0] + n[1] * o[1] + n[2] * o[2];
+            if (Math.abs(nd) < 1e-6) { if (no > 1) { miss = true; break; } continue; }
+            const tt = (1 - no) / nd;
+            if (nd < 0) { if (tt > tin) { tin = tt; ni = k; } } else if (tt < tout) tout = tt;
+          }
+          if (miss || tin > tout || ni < 0) continue;
+          const p = [o[0] + d[0] * tin, o[1] + d[1] * tin, o[2] + d[2] * tin];
+          const i = y * W + x;
+          cover[i] = 1;
+          const ax_ = Math.abs(p[0]), ay_ = Math.abs(p[1]), az_ = Math.abs(p[2]);
+          if (Math.min(ax_, ay_, az_) < ex) { put(i, (ax_ + ay_ < ex * 3 || ay_ + az_ < ex * 3 || ax_ + az_ < ex * 3) ? GH : GD); continue; }
+          const n = N[ni];
+          const nw = toWorld(n[0] / 1.732, n[1] / 1.732, n[2] / 1.732);
+          let v = Math.max(0, -(nw[0] * L[0] + nw[1] * L[1] + nw[2] * L[2]));
+          v = 0.06 + 0.94 * Math.pow(v, 1.3);
+          // subtle banding across each facet for depth
+          v *= 0.86 + 0.14 * (1 - Math.min(1, (ax_ + ay_ + az_ - Math.max(ax_, ay_, az_)) * 1.1));
+          if (bay(x, y) < v) put(i, IV);
+          else if (bay(x + 3, y + 5) < v * 0.18) put(i, DIM);
+          else put(i, VD);
+        }
+      }
+
+      // the ball
+      if (R > 1) {
+        const [bx, by, depth] = orbitPt(ballA);
+        const xi = Math.round(bx), yi = Math.round(by);
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+          const X = xi + ox, Y = yi + oy;
+          if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
+          const i = Y * W + X;
+          if (depth < 0 && cover[i]) continue; // behind the diamond
+          const edge = Math.abs(ox) + Math.abs(oy) === 2;
+          if (edge) continue;
+          put(i, ox === 0 && oy === 0 ? GH : GD);
+        }
+      }
+
+      g.putImageData(img, 0, 0);
+      if (leaving >= 0 && lt >= 1) { running = false; onDone && onDone(); return; }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+
+    return {
+      get ready() { return ready; },
+      leave(cb) {
+        if (leaving >= 0) return;
+        leaving = performance.now();
+        onDone = () => { removeEventListener("pointermove", onMove); removeEventListener("resize", resize); cb && cb(); };
+        gate.classList.add("is-leaving");
+      },
+    };
+  })();
+
   const enter = (withSound) => {
+    if (!Gate || !Gate.ready) return;
     Sound.set(withSound);
     syncSnd();
-    if (withSound) { Sound.unlock(); Sound.ding(); Sound.chip(3); }
+    if (withSound) { Sound.unlock(); Sound.ding(); }
     store.sset("house-entered", "1");
     document.body.classList.remove("is-locked");
-    setTimeout(() => document.body.classList.add("is-in"), 250);
-    setTimeout(() => $("#gate")?.remove(), 1200);
+    Gate.leave(() => $("#gate")?.remove());
+    setTimeout(() => document.body.classList.add("is-in"), 700);
+    setTimeout(() => document.body.classList.add("is-settled"), 2400);
   };
-  if (store.sget("house-entered")) {
+  if (store.sget("house-entered") || !Gate) {
     document.body.classList.remove("is-locked");
-    $("#gate").remove();
+    $("#gate")?.remove();
     requestAnimationFrame(() => document.body.classList.add("is-in"));
+    setTimeout(() => document.body.classList.add("is-settled"), 1700);
   } else {
     $("#gateEnter").addEventListener("click", () => enter(true));
     $("#gateSilent").addEventListener("click", () => enter(false));
-    $("#gateEnter").focus({ preventScroll: true });
+    addEventListener("keydown", (e) => { if (e.key === "Enter" && $("#gate") && Gate.ready && document.activeElement?.id !== "gateSilent") { e.preventDefault(); enter(true); } });
   }
 
   /* ----------------------------------------------------------
@@ -316,7 +502,7 @@
     const P = {
       void: hex("#05070F"), deep: hex("#070B1A"), navy: hex("#0A1633"), navy2: hex("#13244F"), navy3: hex("#1E3A78"),
       blue: hex("#3D7BFF"), ice: hex("#9CC4FF"), white: hex("#E8F0FF"), ember: hex("#FF4E1A"), amber: hex("#FFB23E"),
-      red: hex("#C61E2E"), ivory: hex("#F2E9D8"), land1: hex("#3A2C24"), land2: hex("#7A5C3E"), land3: hex("#B08A5C"), teal: hex("#1F5A5A"),
+      red: hex("#C61E2E"), gold: hex("#FFC24A"), goldDeep: hex("#B9780F"), goldHot: hex("#FFECBE"), ivory: hex("#F2E9D8"), land1: hex("#3A2C24"), land2: hex("#7A5C3E"), land3: hex("#B08A5C"), teal: hex("#1F5A5A"),
     };
     const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
     const bayer = (x, y) => BAYER[((y & 3) << 2) | (x & 3)];
@@ -370,13 +556,13 @@
       // stars
       seed = 11;
       stars = [];
-      const count = Math.floor((w * h) / 520);
+      const count = Math.floor((w * h) / 900);
       for (let i = 0; i < count; i++) {
         const r = rnd();
         stars.push({
           x: Math.floor(rnd() * w), y: Math.floor(rnd() * h),
-          c: r < 0.12 ? P.amber : r < 0.55 ? P.ice : P.white,
-          ph: rnd() * Math.PI * 2, sp: 0.6 + rnd() * 2.4,
+          c: r < 0.1 ? P.gold : r < 0.55 ? P.ice : P.white,
+          ph: rnd() * Math.PI * 2, sp: 0.4 + rnd() * 1.2,
           big: rnd() < 0.035,
         });
       }
@@ -452,9 +638,9 @@
         ".....r.....",
         ".....r.....",
       ];
-      const map = { "#": hex("#2A0E10"), o: P.ember, a: P.amber, y: hex("#FFE07A"), W: hex("#FFF6D6"), r: P.red };
+      const map = { "#": hex("#2A0E10"), o: P.goldDeep, a: P.gold, y: hex("#FFE29A"), W: P.goldHot, r: P.red };
       lanternSpr = paint(11, art.length, (x, y) => { const ch = art[y][x]; return ch === "." ? null : map[ch]; });
-      lanternGlow = buildFlare(P.amber, P.ember, 28);
+      lanternGlow = buildFlare(P.gold, P.goldDeep, 30);
     }
 
     function makeColumn(cw, th, shades, neon, g) {
@@ -489,11 +675,11 @@
       const mid = [hex("#050811"), hex("#0C1226"), hex("#18213F"), hex("#283862")];
       const far = [hex("#0A1029"), hex("#111B42"), hex("#1A2A5E"), hex("#25397A")];
       const defs = [
-        { f: 0.5, w: 0.024, th: 26, shades: far, neon: mix(P.ember, P.navy2, 0.55), g: 2, xs: [0.06, 0.2, 0.33, 0.47, 0.61, 0.75, 0.9] },
-        { f: 1.0, w: 0.06, th: 42, shades: mid, neon: P.blue, g: 4, xs: [0.15, 0.32, 0.66, 0.82] },
-        { f: 1.9, w: 0.16, th: 64, shades: near, neon: P.ember, g: 7, xs: [-0.07, 0.91] },
+        { f: 0.5, w: 0.026, th: 30, shades: far, neon: mix(P.gold, P.navy2, 0.6), g: 2, xs: [0.1, 0.36, 0.64, 0.9] },
+        { f: 1.0, w: 0.065, th: 54, shades: mid, neon: mix(P.blue, P.navy2, 0.25), g: 4, xs: [0.2, 0.8] },
+        { f: 1.9, w: 0.16, th: 84, shades: near, neon: P.gold, g: 8, xs: [-0.08, 0.92] },
       ];
-      if (innerWidth < 700) { defs[0].xs = [0.1, 0.42, 0.7, 0.95]; defs[1].xs = [0.22, 0.76]; defs[2].w = 0.12; }
+      if (innerWidth < 700) { defs[0].xs = [0.18, 0.82]; defs[1].xs = []; defs[2].w = 0.12; }
       cols = defs.map((d) => {
         const cw = Math.max(d.f > 1.5 ? 24 : d.f > 0.8 ? 9 : 5, Math.round(W * d.w));
         return { ...d, cw, spr: makeColumn(cw, d.th, d.shades, d.neon, d.g) };
@@ -502,11 +688,9 @@
 
     function buildLanternLayout() {
       lanterns = [
-        { x: 0.58, len: 0.16, f: 1.25, ph: 0.0, sc: 2 },
-        { x: 0.7, len: 0.27, f: 1.25, ph: 1.3, sc: 2 },
-        { x: 0.8, len: 0.38, f: 1.25, ph: 2.1, sc: 2 },
-        { x: 0.24, len: 0.1, f: 1.1, ph: 0.7, sc: 1 },
-        { x: 0.4, len: 0.22, f: 1.1, ph: 2.6, sc: 1 },
+        { x: 0.64, len: 0.14, f: 1.25, ph: 0.0, sc: 2 },
+        { x: 0.73, len: 0.24, f: 1.25, ph: 1.3, sc: 2 },
+        { x: 0.82, len: 0.34, f: 1.25, ph: 2.1, sc: 2 },
       ];
     }
 
@@ -522,7 +706,7 @@
       ctx.imageSmoothingEnabled = false;
       buildBackdrop();
       buildEarth();
-      flareWarm = buildFlare(P.amber, P.ember, Math.round(Math.min(W, H) * 0.12));
+      flareWarm = buildFlare(P.gold, P.goldDeep, Math.round(Math.min(W, H) * 0.12));
       flareCool = buildFlare(P.ice, P.blue, Math.round(Math.min(W, H) * 0.06));
       buildLanterns();
       buildColumns();
@@ -565,7 +749,7 @@
       const fwx = Math.round(W * 0.13 + bx + backdrop.pad), fwy = Math.round(H * 0.15 + by);
       if (fwy + flareWarm.height > 0) {
         ctx.drawImage(flareWarm, fwx - (flareWarm.width >> 1), fwy - (flareWarm.height >> 1));
-        rays(fwx, fwy, Math.round(flareWarm.width * 0.62 + Math.sin(t * 1.3) * 3), P.amber);
+        rays(fwx, fwy, Math.round(flareWarm.width * 0.62 + Math.sin(t * 1.3) * 3), P.gold);
       }
       const fcx = Math.round(W * 0.76 + bx + backdrop.pad), fcy = Math.round(H * 0.17 + by);
       if (fcy + flareCool.height > 0) {
@@ -597,7 +781,7 @@
         const ly = top + 10 + H * L.len;
         if (ly < -40) continue;
         const ax = Math.round(L.x * W - mxo * W * 0.08 * L.f);
-        const sw = Math.sin(t * 0.9 + L.ph) * 3 * L.sc;
+        const sw = Math.sin(t * 0.6 + L.ph) * 2 * L.sc;
         const sprW = lanternSpr.width * L.sc, sprH = lanternSpr.height * L.sc;
         const lx = Math.round(ax + sw - sprW / 2);
         // string
@@ -647,25 +831,6 @@
   measure();
 
   /* ----------------------------------------------------------
-     TICKERS
-     ---------------------------------------------------------- */
-  const tickers = $$(".ticker").map((tk) => {
-    const track = $(".ticker-track", tk);
-    const unit = track.firstElementChild;
-    const obj = { track, unit, dir: parseFloat(tk.dataset.dir) || 1, x: 0, w: 1 };
-    const fill = () => {
-      obj.w = Math.max(1, unit.offsetWidth);
-      while (track.children.length > 1) track.lastElementChild.remove();
-      const need = Math.ceil((innerWidth * 2) / Math.max(1, unit.offsetWidth)) + 1;
-      for (let i = 0; i < need; i++) track.appendChild(unit.cloneNode(true));
-    };
-    fill();
-    addEventListener("resize", fill);
-    document.fonts?.ready.then(fill);
-    return obj;
-  });
-
-  /* ----------------------------------------------------------
      TABLE — spotlight, dealing, card parallax
      ---------------------------------------------------------- */
   const table = $("#table .felt");
@@ -674,7 +839,7 @@
   const cards = $$(".card", cardsEl);
   const chips = $$(".chip", table).map((el) => ({ el, d: parseFloat(el.dataset.depth) || 1, r: Math.random() * 360 }));
   const cardDepth = cards.map(() => 0.6 + Math.random() * 0.9);
-  let dealt = 0, darkNow = 0.9, sp = { x: innerWidth / 2, y: innerHeight / 2 }, houseUp = false;
+  let dealt = 0, darkNow = 0.62, sp = { x: innerWidth / 2, y: innerHeight / 2 }, houseUp = false;
   const useSpot = !noHover && !reduceMotion;
   if (!useSpot) document.body.classList.add("no-spot");
 
@@ -760,11 +925,11 @@
     }
     sp.x = lerp(sp.x, tx, k);
     sp.y = lerp(sp.y, ty, k);
-    const radius = clamp(innerWidth * 0.17, 170, 300);
+    const radius = clamp(innerWidth * 0.21, 200, 360);
     spot.style.setProperty("--sx", `${(sp.x - r.left).toFixed(1)}px`);
     spot.style.setProperty("--sy", `${(sp.y - r.top).toFixed(1)}px`);
     spot.style.setProperty("--r", `${radius.toFixed(0)}px`);
-    const targetDark = houseUp ? 0.28 : 0.9 - 0.4 * (dealt / Math.max(1, cards.length));
+    const targetDark = houseUp ? 0.12 : 0.62 - 0.32 * (dealt / Math.max(1, cards.length));
     darkNow = lerp(darkNow, targetDark, 0.04);
     spot.style.setProperty("--dark", darkNow.toFixed(3));
 
@@ -800,18 +965,8 @@
     }
     const mx = state.smx - 0.5, my = state.smy - 0.5;
     for (const m of mouseEls) m.el.style.transform = `translate3d(${(-mx * m.d).toFixed(1)}px, ${(-my * m.d * 0.5).toFixed(1)}px, 0)`;
-    const sk = clamp(state.vel * 0.12, -7, 7);
+    const sk = clamp(state.vel * 0.06, -3, 3);
     for (const el of skewEls) el.style.transform = `skewY(${sk.toFixed(2)}deg)`;
-
-    for (const tk of tickers) {
-      const speed = 0.9 + Math.min(14, Math.abs(state.vel) * 0.35);
-      const dir = tk.dir * (state.vel < -0.5 ? -1 : 1);
-      tk.x -= speed * dir;
-      const wU = tk.w;
-      if (tk.x <= -wU) tk.x += wU;
-      if (tk.x > 0) tk.x -= wU;
-      tk.track.style.transform = `translate3d(${tk.x.toFixed(1)}px,0,0)`;
-    }
 
     tableFrame(now);
 
