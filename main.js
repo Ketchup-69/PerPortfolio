@@ -13,6 +13,7 @@
   const smooth = (t) => t * t * (3 - 2 * t);
   const easeOut = (t) => 1 - Math.pow(1 - t, 3);
   const easeIn = (t) => t * t * t;
+  const soft = (t) => { t = clamp(t, 0, 1); return t + (t * t * (3 - 2 * t) - t) * 0.42; };
   const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
   const SITE = window.SITE || {};
@@ -316,7 +317,7 @@
     let S = 3, W = 0, H = 0, backdrop = null, earth = null, ov = null, og = null, oimg = null, obuf = null;
     let stars = [];
     const cam = { hz: 0.6, h: 1.3, sp: 3, z: 0 };
-    let landStart = -1, visible = false, hzOverride = null;
+    let landStart = -1, visible = false, hzOverride = null, paused = false;
     const P = {
       void: hex3("#020409"), deep: hex3("#060b1c"), navy: hex3("#0a1633"), navy2: hex3("#13244f"), navy3: hex3("#1e3a78"),
       blue: hex3("#3d7bff"), ice: hex3("#9cc4ff"), white: hex3("#e8f0ff"), acc: hex3("#ff5a24"), accD: hex3("#8a2a0e"), accS: hex3("#ff9a74"),
@@ -457,10 +458,10 @@
     let last = performance.now();
     function draw(now = performance.now()) {
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
-      if (!visible) return;
+      if (!visible || paused) return;
       const t = now / 1000;
-      const tg0 = target(scrollY + innerHeight * 0.5), tg = hzOverride === null ? tg0 : { ...tg0, hz: hzOverride }, k = reduceMotion ? 1 : 0.12;
-      cam.hz = lerp(cam.hz, tg.hz, k); cam.h = lerp(cam.h, tg.h, k); cam.sp = lerp(cam.sp, tg.sp + Math.min(14, Math.abs(state.vel) * 0.25), k);
+      const tg0 = target(scrollY + innerHeight * 0.5), tg = hzOverride === null ? tg0 : { ...tg0, hz: hzOverride }, k = reduceMotion ? 1 : 1 - Math.exp(-dt * 6);
+      cam.hz = lerp(cam.hz, tg.hz, k); cam.h = lerp(cam.h, tg.h, k); cam.sp = lerp(cam.sp, tg.sp, k);
       let hz = cam.hz, h = cam.h;
       if (landStart >= 0) {
         const lt = clamp((now - landStart) / 1800, 0, 1), e = easeOut(lt);
@@ -502,7 +503,7 @@
     addEventListener("load", computeKeys);
     document.fonts?.ready.then(computeKeys);
     resize();
-    return { draw, show() { visible = true; }, land() { visible = true; landStart = performance.now(); }, recompute: computeKeys, override(v) { hzOverride = v; } };
+    return { draw, show() { visible = true; }, land() { visible = true; landStart = performance.now(); }, recompute: computeKeys, override(v) { hzOverride = v; }, pause(v) { paused = v; } };
   })();
 
   /* ----------------------------------------------------------
@@ -1220,7 +1221,7 @@
     const receipt = $("#receipt"), payoutTotal = $("#payoutTotal");
     if (reduceMotion) { floor.classList.add("is-static"); return { frame() {}, holding: true, chapter: null }; }
 
-    const SEG = [["walk", 1.7], ["sit", 1.0], ["hold", 1.7], ["stand", 0.8], ["corridor", 2.2], ["cage", 1.3], ["push", 0.6], ["vault", 1.3], ["reveal", 1.0], ["end", 0.5]];
+    const SEG = [["walk", 1.8], ["sit", 1.2], ["hold", 1.6], ["stand", 1.0], ["corridor", 2.6], ["cage", 1.6], ["push", 0.8], ["vault", 1.6], ["reveal", 1.2], ["end", 0.4]];
     const START = {}; let TOTAL = 0;
     for (const [k, len] of SEG) { START[k] = [TOTAL, len]; TOTAL += len; }
     const seg = (s, k) => clamp((s - START[k][0]) / START[k][1], 0, 1);
@@ -1315,6 +1316,51 @@
       return d;
     }
 
+    // ---------- surface textures: painted once, small, scaled up crisp ----------
+    const TX = 4; // one texel = 4 css px
+    function texture(kind, w, h, gx) {
+      const tw = Math.max(1, Math.round(w / TX)), th = Math.max(1, Math.round(h / TX)), ox = Math.round(gx / TX);
+      const c = mk(tw, th), g2 = c.getContext("2d"), im = g2.createImageData(tw, th), d = im.data;
+      const P = (i, col) => { d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255; };
+      const RED = [74, 13, 22], NAV = [18, 24, 58], GOLD = [201, 162, 74], DGOLD = [106, 78, 24], ACC = [255, 90, 36], HOT = [255, 200, 150];
+      for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
+        const X = x + ox, i = (y * tw + x) * 4, v = y / th;
+        let col;
+        if (kind === "r-floor") {
+          const u = ((X % 16) + 16) % 16, w2 = y % 16, dia = (Math.abs(u - 8) + Math.abs(w2 - 8)) < 8;
+          col = dia ? RED : NAV;
+          if (u === 4 && w2 === 4) col = GOLD;
+          if (Math.abs(v - 0.475) < 0.006 || Math.abs(v - 0.525) < 0.006) col = ACC;
+          if (y < 3 || y >= th - 3) col = y === 2 || y === th - 3 ? GOLD : [42, 15, 18];
+        } else if (kind === "r-ceil") {
+          const u = ((X % 112) + 112) % 112;
+          col = u >= 55 && u < 59 ? HOT : u === 54 || u === 59 ? [58, 26, 16] : [11, 7, 16];
+          if (u >= 55 && u < 59 && (y < 3 || y >= th - 3)) col = [58, 26, 16];
+          if (y < 3 || y >= th - 3) col = [26, 10, 16];
+        } else if (kind === "r-wall") {
+          const u = ((X % 75) + 75) % 75;
+          const t = 0.16 + 0.12 * (1 - v);
+          col = bay(X, y) < t ? [42, 12, 20] : [24, 7, 13];
+          if (u === 0) col = GOLD; else if (u === 1) col = DGOLD;
+          const gy = Math.abs(v - 0.3) * th;
+          if (gy < 1) col = [255, 122, 74]; else if (gy < 3 && bay(X, y) < 0.5) col = ACC;
+          if (y < 2) col = ACC; else if (y < 3) col = [58, 15, 12];
+          if (y >= th - 6) col = y === th - 6 ? GOLD : [42, 15, 18];
+        } else if (kind === "r-steel-floor" || kind === "r-steel-ceil") {
+          const u = ((X % 30) + 30) % 30, w2 = y % 30;
+          col = u === 0 || w2 === 0 ? [28, 32, 48] : [44, 49, 64];
+          if (kind === "r-steel-ceil") { col = [18, 20, 28]; const cx = ((X % 100) + 100) % 100 - 50, cy = (y % 100) - 50; if (cx * cx + cy * cy < 90) col = [255, 220, 170]; }
+        } else {
+          const u = ((X % 60) + 60) % 60;
+          col = u === 0 ? [154, 163, 181] : bay(X, y) < 0.3 ? [38, 43, 56] : [30, 34, 48];
+          if ((X % 15 + 15) % 15 === 7 && y % 15 === 7) col = [90, 98, 117];
+        }
+        P(i, col);
+      }
+      g2.putImageData(im, 0, 0);
+      return c;
+    }
+
     // ---------- build the world ----------
     const objs = [];
     const place = (el, x, y, z, ry = 0, rx = 0) => { world.appendChild(el); const o = { el, x, y, z, ry, rx }; objs.push(o); return o; };
@@ -1334,25 +1380,25 @@
       const cw = cage.el.offsetWidth || 1200, ch = cage.el.offsetHeight || 900;
       VW = vault.el.offsetWidth || 2400; VH = vault.el.offsetHeight || 1500;
       CW = cw / 2; FY = ch / 2; CY = -ch / 2;
-      const panel = (cls, w, h, x, y, z, ry, rx, kind) => {
-        const d = document.createElement("div");
+      const panel = (cls, w, h, x, y, z, ry, rx, kind, gx) => {
+        const d = texture(cls, w, h, gx || 0);
         d.className = "wobj rplane " + cls; d.style.width = w + "px"; d.style.height = h + "px";
         const o = place(d, x, y, z, ry, rx); o.kind = kind; room.push(o); return o;
       };
-      const run = (x0, x1, fn) => { const n = Math.ceil((x1 - x0) / 900), L = (x1 - x0) / n; for (let i = 0; i < n; i++) fn(x0 + L * (i + 0.5), L, i); };
+      const run = (x0, x1, fn) => { const n = Math.ceil((x1 - x0) / 900), L = (x1 - x0) / n; for (let i = 0; i < n; i++) fn(x0 + L * (i + 0.5), L, x0 + L * i); };
       // hallway: carpet, panelled walls, light-strip ceiling
-      run(-600, CAGE_X, (xc, L, i) => {
-        panel("r-floor", L + 2, cw, xc, FY, TZ, 0, 90, "floor");
-        panel("r-ceil", L + 2, cw, xc, CY, TZ, 0, 90, "ceil");
-        panel("r-wall", L + 2, ch, xc, 0, TZ - CW, 0, 0, "wallL");
-        panel("r-wall", L + 2, ch, xc, 0, TZ + CW, 0, 0, "wallR");
+      run(-600, CAGE_X, (xc, L, gx) => {
+        panel("r-floor", L + 2, cw, xc, FY, TZ, 0, 90, "floor", gx);
+        panel("r-ceil", L + 2, cw, xc, CY, TZ, 0, 90, "ceil", gx);
+        panel("r-wall", L + 2, ch, xc, 0, TZ - CW, 0, 0, "wallL", gx);
+        panel("r-wall", L + 2, ch, xc, 0, TZ + CW, 0, 0, "wallR", gx);
       });
       // vault room: steel
-      run(CAGE_X, VAULT_X, (xc, L) => {
-        panel("r-steel-floor", L + 2, VW, xc, VH / 2, TZ, 0, 90, "floor");
-        panel("r-steel-ceil", L + 2, VW, xc, -VH / 2, TZ, 0, 90, "ceil");
-        panel("r-steel", L + 2, VH, xc, 0, TZ - VW / 2, 0, 0, "wallL");
-        panel("r-steel", L + 2, VH, xc, 0, TZ + VW / 2, 0, 0, "wallR");
+      run(CAGE_X, VAULT_X, (xc, L, gx) => {
+        panel("r-steel-floor", L + 2, VW, xc, VH / 2, TZ, 0, 90, "floor", gx);
+        panel("r-steel-ceil", L + 2, VW, xc, -VH / 2, TZ, 0, 90, "ceil", gx);
+        panel("r-steel", L + 2, VH, xc, 0, TZ - VW / 2, 0, 0, "wallL", gx);
+        panel("r-steel", L + 2, VH, xc, 0, TZ + VW / 2, 0, 0, "wallR", gx);
       });
       // slot machines line both walls, standing on the carpet
       const slotH = vw < 760 ? 270 : 414, slotW = vw < 760 ? 150 : 230;
@@ -1417,7 +1463,7 @@
     const fire = (k, fn) => { if (!once.has(k)) { once.add(k); fn(); } };
     const reset = (k) => once.delete(k);
 
-    let last = performance.now(), slotTick = 0;
+    let last = performance.now(), slotTick = 0, sSm = 0;
     const api = { holding: false, chapter: null, frame };
 
     function frame(now) {
@@ -1425,15 +1471,17 @@
       const r = floor.getBoundingClientRect();
       const on = r.top < vh && r.bottom > 0;
       api.chapter = null;
-      if (!on) { Scene.override(null); api.holding = false; sceneEl.style.opacity = r.bottom <= 0 ? "0" : "1"; return; }
-      const s = clamp(-r.top / vh, 0, TOTAL);
-      const walk = easeInOut(seg(s, "walk")), sitAll = seg(s, "sit"), sit = easeInOut(clamp(sitAll / 0.45, 0, 1)), look = easeInOut(clamp((sitAll - 0.45) / 0.55, 0, 1));
-      const hold = seg(s, "hold"), stand = easeInOut(seg(s, "stand"));
-      const corr = seg(s, "corridor"), turn = easeInOut(clamp(corr / 0.25, 0, 1)), stroll = easeInOut(clamp((corr - 0.2) / 0.8, 0, 1));
-      const cageP = seg(s, "cage"), push = easeIn(seg(s, "push")), vaultP = seg(s, "vault"), reveal = seg(s, "reveal");
+      if (!on) { Scene.override(null); api.holding = false; sceneEl.style.opacity = r.bottom <= 0 ? "0" : "1"; Scene.pause(r.bottom <= 0); return; }
+      const sRaw = clamp(-r.top / vh, 0, TOTAL);
+      sSm = Smooth ? sRaw : (Math.abs(sSm - sRaw) > 3 ? sRaw : lerp(sSm, sRaw, 1 - Math.exp(-dt * 9)));
+      const s = sSm;
+      const walk = soft(seg(s, "walk")), sitAll = seg(s, "sit"), sit = soft(sitAll / 0.5), look = soft((sitAll - 0.4) / 0.6);
+      const hold = seg(s, "hold"), stand = soft(seg(s, "stand"));
+      const corr = seg(s, "corridor"), turn = soft(corr / 0.28), stroll = soft((corr - 0.18) / 0.82);
+      const cageP = seg(s, "cage"), push = soft(seg(s, "push")), vaultP = seg(s, "vault"), reveal = seg(s, "reveal");
       const walking = (walk > 0 && walk < 1) || (stroll > 0 && stroll < 1);
-      const bobPhase = walk * 10 + stroll * 16 + seg(s, "vault") * 6;
-      const bob = Math.sin(bobPhase * Math.PI) * (walking ? 7 : 0);
+      const bobPhase = walk * 6 + stroll * 9 + seg(s, "vault") * 3;
+      const bob = Math.sin(bobPhase * Math.PI) * 3.5 * Math.min(1, Math.sin(Math.PI * (walk > 0 && walk < 1 ? walk : stroll)) * 2);
 
       // ---- camera through the world
       let camX = 0, camY = 0, camZ = lerp(0, TZ + 300, walk), yaw = 0;
@@ -1441,11 +1489,11 @@
       yaw = 90 * turn;
       camZ = lerp(camZ, TZ, turn);
       camX = lerp(0, CAGE_X - 1250, stroll);
-      camX = lerp(camX, CAGE_X - 700, easeInOut(cageP));
+      camX = lerp(camX, CAGE_X - 700, soft(cageP));
       camX = lerp(camX, CAGE_X + 80, push);                       // through the window
-      camX = lerp(camX, VAULT_X - 1250, easeInOut(clamp(vaultP / 0.5, 0, 1)));
-      camX = lerp(camX, VAULT_X - 300, easeIn(clamp((vaultP - 0.7) / 0.3, 0, 1)));
-      const shake = (cageP > 0.4 && cageP < 0.95 ? Math.sin(now * 0.07) * 2 : 0) + (vaultP > 0.55 && vaultP < 0.7 ? Math.sin(now * 0.11) * 5 : 0);
+      camX = lerp(camX, VAULT_X - 1250, soft(vaultP / 0.55));
+      camX = lerp(camX, VAULT_X - 300, soft((vaultP - 0.62) / 0.38));
+      const shake = 0;
       world.style.transform = `rotateY(${yaw.toFixed(2)}deg) translate3d(${(-camX + shake).toFixed(1)}px, ${(-camY - bob).toFixed(1)}px, ${(-(camZ) + PERSP).toFixed(1)}px)`;
       // cull anything at or behind the eye
       const sy = Math.sin((yaw * Math.PI) / 180), cy = Math.cos((yaw * Math.PI) / 180);
@@ -1455,7 +1503,7 @@
         if (o.vis !== vis) { o.vis = vis; o.el.style.visibility = vis ? "visible" : "hidden"; }
       }
       // the room assembles around you as you turn: walls slide in, floor rises, ceiling drops
-      const b = easeOut(clamp((corr - 0.04) / 0.36, 0, 1));
+      const b = soft((corr - 0.02) / 0.4);
       if (b !== roomB) {
         roomB = b;
         for (const o of room) {
@@ -1470,6 +1518,7 @@
         for (const o of room) { const v = o.vis && b > 0; o.el.style.visibility = v ? "visible" : "hidden"; }
       }
       sceneEl.style.opacity = (1 - b).toFixed(3);
+      Scene.pause(b >= 1);
       // the walk-in set dissolves once you're seated; the corridor appears as you turn
       world.style.opacity = (1 - look * (1 - stand)).toFixed(3);
 
@@ -1514,18 +1563,18 @@
       }
       // ---- the vault: wheel spins, door swings, light floods
       if (vault) {
-        const spin = easeInOut(clamp((vaultP - 0.3) / 0.3, 0, 1)), open = easeInOut(clamp((vaultP - 0.58) / 0.42, 0, 1));
+        const spin = soft((vaultP - 0.25) / 0.35), open = soft((vaultP - 0.55) / 0.45);
         if (vaultP > 0) vault.el.door.draw(spin * Math.PI * 3);
         vault.el.door.style.transform = `rotateY(${(-108 * open).toFixed(2)}deg)`;
         vault.el.style.setProperty("--light", open.toFixed(3));
         if (vaultP > 0.32) fire("wheel", () => Sound.spin()); else if (vaultP <= 0.25) reset("wheel");
         if (vaultP > 0.6) fire("door", () => { Sound.lever(); Sound.land(); }); else if (vaultP <= 0.55) reset("door");
       }
-      flash.style.opacity = (clamp((vaultP - 0.85) / 0.15, 0, 1) * (1 - clamp(reveal / 0.35, 0, 1)) + push * (1 - clamp(seg(s, "vault") / 0.15, 0, 1)) * 0.6).toFixed(3);
+      flash.style.opacity = (soft((vaultP - 0.8) / 0.2) * (1 - soft(reveal / 0.4)) * 0.85).toFixed(3);
 
       // ---- the cash-out page assembles inside the vault
       if (reveal > 0) {
-        const e = easeOut(clamp(reveal / 0.55, 0, 1));
+        const e = soft(reveal / 0.6);
         if (e >= 1) cashPlane.style.transform = "none";
         else setT(cashPlane, 0, (1 - e) * 0.1 * vh, lerp(-1400, 0, e), lerp(8, 0, e));
         show(cashPlane, clamp(reveal / 0.25, 0, 1));
@@ -1572,9 +1621,51 @@
   }
 
   /* ----------------------------------------------------------
+     SMOOTH SCROLL — wheel input glides at one constant feel
+     ---------------------------------------------------------- */
+  const Smooth = (() => {
+    if (reduceMotion || noHover) return null;
+    document.documentElement.style.scrollBehavior = "auto";
+    let target = scrollY, cur = scrollY, active = false;
+    const max = () => document.documentElement.scrollHeight - innerHeight;
+    addEventListener("wheel", (e) => {
+      if (e.ctrlKey || document.body.classList.contains("is-locked")) return;
+      if (e.target.closest && e.target.closest(".m-panel")) return;
+      e.preventDefault();
+      const d = e.deltaY * (e.deltaMode === 1 ? 36 : e.deltaMode === 2 ? innerHeight : 1);
+      if (!active) cur = target = scrollY;
+      target = clamp(target + clamp(d, -240, 240), 0, max());
+      active = true;
+    }, { passive: false });
+    addEventListener("scroll", () => { if (!active) cur = target = scrollY; }, { passive: true });
+    document.addEventListener("click", (e) => {
+      const a = e.target.closest && e.target.closest('a[href^="#"]');
+      if (!a) return;
+      const el = document.getElementById(a.getAttribute("href").slice(1));
+      if (!el) return;
+      e.preventDefault();
+      if (!active) cur = scrollY;
+      target = clamp(el.getBoundingClientRect().top + scrollY, 0, max());
+      active = true;
+    });
+    return {
+      frame(dt) {
+        if (!active) return;
+        const gap = target - cur;
+        // constant-feel glide: eased, but with a capped top speed so long jumps don't blur past scenes
+        const step = gap * (1 - Math.exp(-dt * 5.5));
+        cur += clamp(step, -innerHeight * 2.2 * dt, innerHeight * 2.2 * dt);
+        if (Math.abs(target - cur) < 0.5) { cur = target; active = false; }
+        scrollTo(0, cur);
+      },
+    };
+  })();
+
+  /* ----------------------------------------------------------
      LOOP
      ---------------------------------------------------------- */
   function frame(now) {
+    Smooth && Smooth.frame(Math.min(0.05, (now - (frame.ls || now)) / 1000)); frame.ls = now;
     state.t = now / 1000;
     state.sy = scrollY;
     state.vel = lerp(state.vel, state.sy - state.lastSy, 0.2);
@@ -1591,8 +1682,6 @@
       heroW1.style.setProperty("--wd1", (150 - state.smx * 45).toFixed(1) + "%");
       heroW2.style.setProperty("--wd2", (56 + state.smx * 24).toFixed(1) + "%");
     }
-    const sk = clamp(state.vel * 0.05, -2.5, 2.5);
-    for (const el of skewEls) el.style.transform = `skewY(${sk.toFixed(2)}deg)`;
     transitions(now);
     tableFrame(now);
     chapterFrame();
