@@ -617,3 +617,33 @@ a.l-row[hidden] { display: none; }
   .w-sign { font-size: 24px; padding: 8px 14px 6px; }
   .w-slot { width: 150px; height: 270px; }
 }
+
+
+/* ---------- The room: hallway + vault ---------- */
+.rplane { backface-visibility: visible; image-rendering: pixelated; }
+.r-floor {
+  background:
+    linear-gradient(90deg, transparent 47%, rgba(255, 90, 36, 0.55) 47% 48%, transparent 48% 52%, rgba(255, 90, 36, 0.55) 52% 53%, transparent 53%),
+    conic-gradient(from 45deg, #4a0d16 0 25%, #12183a 0 50%, #4a0d16 0 75%, #12183a 0) 0 0 / 64px 64px,
+    #1a0a10;
+  box-shadow: inset 0 0 0 10px #2a0f12, inset 0 0 0 14px #c9a24a;
+}
+.r-floor::after { content: ""; position: absolute; inset: 0; background: radial-gradient(rgba(255, 204, 51, 0.5) 1.5px, transparent 2.5px) 16px 16px / 64px 64px; opacity: 0.5; }
+.r-ceil {
+  background:
+    repeating-linear-gradient(90deg, #0b0710 0 220px, #3a1a10 220px 226px, #ffcc88 226px 240px, #3a1a10 240px 246px, #0b0710 246px 450px),
+    #0b0710;
+  box-shadow: inset 0 0 0 12px #1a0a10, inset 0 0 120px rgba(255, 150, 80, 0.15);
+}
+.r-wall {
+  background:
+    linear-gradient(#ff5a24 0 6px, #3a0f0c 6px 12px, transparent 12px calc(100% - 22px), #c9a24a calc(100% - 22px) calc(100% - 18px), #2a0f12 calc(100% - 18px)),
+    repeating-linear-gradient(90deg, transparent 0 296px, #c9a24a 296px 300px, #6a4e18 300px 304px),
+    repeating-conic-gradient(rgba(255, 255, 255, 0.025) 0 25%, transparent 0 50%) 0 0 / 6px 6px,
+    linear-gradient(#2a0c14, #18070d 60%, #0e050a);
+}
+.r-wall::after { content: ""; position: absolute; left: 0; right: 0; top: 30%; height: 4px; background: rgba(255, 90, 36, 0.7); box-shadow: 0 0 18px rgba(255, 90, 36, 0.8); }
+.r-steel-floor { background: repeating-linear-gradient(90deg, #2c3140 0 118px, #1c2030 118px 120px), repeating-linear-gradient(#2c3140 0 118px, #1c2030 118px 120px), #2c3140; box-shadow: inset 0 0 160px rgba(0, 0, 0, 0.7); }
+.r-steel-ceil { background: radial-gradient(circle, rgba(255, 220, 170, 0.35) 0 40px, transparent 41px) 50% 50% / 400px 400px, #12141c; }
+.r-steel { background: radial-gradient(#5a6275 2.5px, transparent 3.5px) 0 0 / 60px 60px, repeating-linear-gradient(90deg, #262b38 0 238px, #9aa3b5 238px 240px), linear-gradient(#1e2230, #12141c); box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.6); }
+.footer { background: #07080d; }

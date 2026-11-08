@@ -1147,7 +1147,7 @@
   function reshuffle() {
     cards.forEach((c, i) => setTimeout(() => c.classList.remove("is-dealt"), i * 70));
     dealt = 0; houseUp = false; Sound.chip(4);
-    const h = $("#tableHint .hint-text"); if (h) h.textContent = useSpot ? "Move your light across the felt to deal the cards." : "Scroll to deal the cards.";
+    const h = $("#tableHint .hint-text"); if (h) h.textContent = noHover ? "Tap a card to turn it over." : "Hover a card to turn it over.";
   }
   $("#dealAll").addEventListener("click", () => cards.forEach((c, i) => setTimeout(() => deal(c), i * 110)));
   $("#reshuffle").addEventListener("click", reshuffle);
@@ -1155,6 +1155,7 @@
     c.addEventListener("click", (e) => { if (!e.target.closest("a")) deal(c); });
     c.addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target === c) { e.preventDefault(); deal(c); } });
     c.addEventListener("focusin", () => deal(c));
+    c.addEventListener("pointerenter", (e) => { if (e.pointerType === "mouse") deal(c); });
     if (!noHover) {
       c.addEventListener("pointermove", (e) => {
         const r = c.getBoundingClientRect();
@@ -1165,7 +1166,7 @@
     }
   });
   if (reduceMotion) cards.forEach((c) => deal(c, true));
-  else if (!useSpot) { const h = $("#tableHint .hint-text"); if (h) h.textContent = "Scroll to deal the cards."; }
+  else if (noHover) { const h = $("#tableHint .hint-text"); if (h) h.textContent = "Tap a card to turn it over."; }
 
 
   function transitions(now) { Floor.frame(now); }
@@ -1203,11 +1204,6 @@
     const targetDark = houseUp ? 0.08 : 0.55 - 0.3 * (dealt / Math.max(1, cards.length));
     darkNow = lerp(darkNow, targetDark, 0.04);
     spot.style.setProperty("--dark", darkNow.toFixed(3));
-    for (const c of cards) {
-      if (c.classList.contains("is-dealt")) continue;
-      const cr = c.getBoundingClientRect();
-      if (Math.hypot(cr.left + cr.width / 2 - sp.x, cr.top + cr.height / 2 - sp.y) < radius * 0.75) deal(c);
-    }
   }
 
   /* ----------------------------------------------------------
@@ -1324,30 +1320,60 @@
     const place = (el, x, y, z, ry = 0, rx = 0) => { world.appendChild(el); const o = { el, x, y, z, ry, rx }; objs.push(o); return o; };
     let vw = innerWidth, vh = innerHeight;
     const TZ = -2900;                 // where the table stands
-    const CW = 560;                   // corridor half-width
+    let CW = 600, FY = 450, CY = -450, VW = 2400, VH = 1500;
+    const room = [];
     const CAGE_X = 7000, VAULT_X = 8400;
     function build() {
-      world.innerHTML = ""; objs.length = 0;
+      world.innerHTML = ""; objs.length = 0; room.length = 0;
       vw = innerWidth; vh = innerHeight;
-      [[-1.15, -2000], [1.2, -3100], [-1.3, -4300], [1.3, -5300], [-1.2, -1200]].forEach(([gx, gz]) => place(ghostTable(), gx * vw, 0.42 * vh, gz, 0, 80));
-      [[-0.32, -0.36, -800], [0.3, -0.42, -1600], [-0.16, -0.34, -2400], [0.36, -0.38, -3300], [-0.42, -0.4, -4100]].forEach(([lx, ly, lz]) => place(lantern(), lx * vw, ly * vh, lz));
-      // the slot corridor, running along +x from the table
+      // walk-in: only lanterns hanging over the table
+      [[-0.32, -0.36, -800], [0.3, -0.42, -1600], [-0.16, -0.34, -2400], [0.36, -0.38, -3300]].forEach(([lx, ly, lz]) => place(lantern(), lx * vw, ly * vh, lz));
+      // the cage is the front wall of the hallway; size the room to it
+      cage = place(cageWrap(), CAGE_X, 0, TZ, -90); room.push(cage);
+      vault = place(vaultWrap(), VAULT_X, 0, TZ, -90); room.push(vault);
+      const cw = cage.el.offsetWidth || 1200, ch = cage.el.offsetHeight || 900;
+      VW = vault.el.offsetWidth || 2400; VH = vault.el.offsetHeight || 1500;
+      CW = cw / 2; FY = ch / 2; CY = -ch / 2;
+      const panel = (cls, w, h, x, y, z, ry, rx, kind) => {
+        const d = document.createElement("div");
+        d.className = "wobj rplane " + cls; d.style.width = w + "px"; d.style.height = h + "px";
+        const o = place(d, x, y, z, ry, rx); o.kind = kind; room.push(o); return o;
+      };
+      const run = (x0, x1, fn) => { const n = Math.ceil((x1 - x0) / 900), L = (x1 - x0) / n; for (let i = 0; i < n; i++) fn(x0 + L * (i + 0.5), L, i); };
+      // hallway: carpet, panelled walls, light-strip ceiling
+      run(-600, CAGE_X, (xc, L, i) => {
+        panel("r-floor", L + 2, cw, xc, FY, TZ, 0, 90, "floor");
+        panel("r-ceil", L + 2, cw, xc, CY, TZ, 0, 90, "ceil");
+        panel("r-wall", L + 2, ch, xc, 0, TZ - CW, 0, 0, "wallL");
+        panel("r-wall", L + 2, ch, xc, 0, TZ + CW, 0, 0, "wallR");
+      });
+      // vault room: steel
+      run(CAGE_X, VAULT_X, (xc, L) => {
+        panel("r-steel-floor", L + 2, VW, xc, VH / 2, TZ, 0, 90, "floor");
+        panel("r-steel-ceil", L + 2, VW, xc, -VH / 2, TZ, 0, 90, "ceil");
+        panel("r-steel", L + 2, VH, xc, 0, TZ - VW / 2, 0, 0, "wallL");
+        panel("r-steel", L + 2, VH, xc, 0, TZ + VW / 2, 0, 0, "wallR");
+      });
+      // slot machines line both walls, standing on the carpet
+      const slotH = vw < 760 ? 270 : 414, slotW = vw < 760 ? 150 : 230;
       for (let i = 0; i < 8; i++) {
-        const x = 900 + i * 720;
-        place(slotMachine(i * 2), x, 0.06 * vh, TZ - CW, 0);
-        place(slotMachine(i * 2 + 1), x, 0.06 * vh, TZ + CW, 180);
+        const x = 700 + i * 760;
+        room.push(place(slotMachine(i * 2), x, FY - slotH / 2, TZ - CW + 4, 0));
+        room.push(place(slotMachine(i * 2 + 1), x, FY - slotH / 2, TZ + CW - 4, 180));
       }
-      for (let i = 0; i < 6; i++) place(lantern(), 1200 + i * 1000, -0.36 * vh, TZ + (i % 2 ? 160 : -160));
+      for (let i = 0; i < 7; i++) room.push(place(lantern(), 600 + i * 900, CY + 70, TZ + (i % 2 ? CW * 0.45 : -CW * 0.45)));
       const sign = document.createElement("div");
       sign.className = "wobj w-sign"; sign.innerHTML = "<span>Cashier</span><b>▸</b>";
-      place(sign, 3600, -0.3 * vh, TZ - 240, -90);
-      const sign2 = sign.cloneNode(true); place(sign2, 5600, -0.3 * vh, TZ + 260, -90);
-      cage = place(cageWrap(), CAGE_X, 0.02 * vh, TZ, -90);
-      vault = place(vaultWrap(), VAULT_X, 0, TZ, -90);
+      room.push(place(sign, 3400, CY + 120, TZ - CW * 0.4, -90));
+      room.push(place(sign.cloneNode(true), 5400, CY + 120, TZ + CW * 0.4, -90));
+      room.forEach((o) => (o.room = true));
       objs.forEach((o) => { o.el.style.transform = `translate(-50%, -50%) translate3d(${o.x}px, ${o.y}px, ${o.z}px) rotateY(${o.ry}deg) rotateX(${o.rx}deg)`; });
       slots = objs.filter((o) => o.el.classList.contains("w-slot"));
+      roomB = -1;
     }
-    let cage, vault, slots = [];
+    let cage, vault, slots = [], roomB = -1;
+    const sceneEl = $("#scene");
+    const tf = (o, dx = 0, dy = 0, dz = 0) => `translate(-50%, -50%) translate3d(${(o.x + dx).toFixed(1)}px, ${(o.y + dy).toFixed(1)}px, ${(o.z + dz).toFixed(1)}px) rotateY(${o.ry}deg) rotateX(${o.rx}deg)`;
 
     // chips you sweep off the table when you stand
     const sweep = [0, 1, 2, 3, 4, 5].map((i) => { const c = mk(16, 16); c.className = "sweep-chip"; drawChip(c, i, ["red", "acc", "navy", "red", "cyan", "acc"][i]); stageEl.appendChild(c); return { c, sx: (i % 3 - 1) * 0.28 + (Math.random() - 0.5) * 0.08, sy: 0.18 + Math.floor(i / 3) * 0.16, d: 0.85 + Math.random() * 0.3 }; });
@@ -1399,7 +1425,7 @@
       const r = floor.getBoundingClientRect();
       const on = r.top < vh && r.bottom > 0;
       api.chapter = null;
-      if (!on) { Scene.override(null); api.holding = false; return; }
+      if (!on) { Scene.override(null); api.holding = false; sceneEl.style.opacity = r.bottom <= 0 ? "0" : "1"; return; }
       const s = clamp(-r.top / vh, 0, TOTAL);
       const walk = easeInOut(seg(s, "walk")), sitAll = seg(s, "sit"), sit = easeInOut(clamp(sitAll / 0.45, 0, 1)), look = easeInOut(clamp((sitAll - 0.45) / 0.55, 0, 1));
       const hold = seg(s, "hold"), stand = easeInOut(seg(s, "stand"));
@@ -1425,9 +1451,25 @@
       const sy = Math.sin((yaw * Math.PI) / 180), cy = Math.cos((yaw * Math.PI) / 180);
       for (const o of objs) {
         const zr = -(o.x - camX) * sy + (o.z - camZ) * cy;
-        const vis = zr < -90 && zr > -7000;
+        const vis = (o.kind ? zr < 520 : zr < -90) && zr > -9000 && !(o.room && roomB <= 0);
         if (o.vis !== vis) { o.vis = vis; o.el.style.visibility = vis ? "visible" : "hidden"; }
       }
+      // the room assembles around you as you turn: walls slide in, floor rises, ceiling drops
+      const b = easeOut(clamp((corr - 0.04) / 0.36, 0, 1));
+      if (b !== roomB) {
+        roomB = b;
+        for (const o of room) {
+          const k = 1 - b;
+          if (o.kind === "wallL") o.el.style.transform = tf(o, 0, 0, -k * 1800);
+          else if (o.kind === "wallR") o.el.style.transform = tf(o, 0, 0, k * 1800);
+          else if (o.kind === "floor") o.el.style.transform = tf(o, 0, k * 1200, 0);
+          else if (o.kind === "ceil") o.el.style.transform = tf(o, 0, -k * 1200, 0);
+          else o.el.style.transform = tf(o, 0, o.kind ? 0 : -k * 400, 0);
+          o.el.style.opacity = (o.kind ? b : clamp((b - 0.35) / 0.65, 0, 1)).toFixed(3);
+        }
+        for (const o of room) { const v = o.vis && b > 0; o.el.style.visibility = v ? "visible" : "hidden"; }
+      }
+      sceneEl.style.opacity = (1 - b).toFixed(3);
       // the walk-in set dissolves once you're seated; the corridor appears as you turn
       world.style.opacity = (1 - look * (1 - stand)).toFixed(3);
 
@@ -1446,7 +1488,6 @@
       } else show(tablePlane, 0);
 
       // scroll-deal while you sit at the table
-      if (hold > 0) cards.forEach((c, i) => { if (hold > 0.12 + i * 0.11) deal(c); });
 
       // chips swept up into your hands
       sweep.forEach((ch) => {
