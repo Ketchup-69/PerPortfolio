@@ -204,6 +204,9 @@
       flip() { if (!ready()) return; noise(0.09, "bandpass", 2300, 0.9, 0.3); tone(820, 0.08, "triangle", 0.045, 0, 260); },
       chip(n = 2) { if (ready()) chipClack(n); },
       tick() { if (ready()) tone(1900, 0.02, "square", 0.01); },
+      lever() { if (!ready()) return; noise(0.12, "lowpass", 600, 0.7, 0.35); tone(140, 0.18, "square", 0.06, 0, 70); tone(90, 0.12, "square", 0.05, 0.22, 60); },
+      spin() { if (!ready()) return; for (let i = 0; i < 18; i++) tone(700 + (i % 3) * 120, 0.03, "square", 0.02, i * 0.07); },
+      reel() { if (!ready()) return; tone(220, 0.08, "square", 0.06); noise(0.05, "highpass", 2000, 0.6, 0.15); },
       coin() { if (!ready()) return; tone(988, 0.08, "square", 0.05); tone(1319, 0.32, "square", 0.05, 0.08); },
       whoosh() {
         if (!ready()) return;
@@ -215,6 +218,7 @@
       jackpot() {
         if (!ready()) return;
         [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98, 2093].forEach((f, i) => tone(f, 0.3, "square", 0.03, i * 0.065));
+        for (let i = 0; i < 14; i++) tone(1800 + Math.random() * 1600, 0.05, "triangle", 0.03, 0.2 + i * 0.05);
         for (let i = 0; i < 5; i++) setTimeout(() => chipClack(2), 450 + i * 90);
       },
     };
@@ -269,37 +273,142 @@
   const rgb = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
   /* ----------------------------------------------------------
-     SCENE — the grid world (smooth vector, full resolution)
+     SCENE — casino in space, 8-bit. Dithered sky, earth below a
+     pixel grid, light-cycle trails, chips and dice drifting.
      ---------------------------------------------------------- */
+  const pk = (r, g, b, a = 255) => ((a << 24) | (b << 16) | (g << 8) | r) >>> 0;
+  function bres(x0, y0, x1, y1, fn) {
+    x0 |= 0; y0 |= 0; x1 |= 0; y1 |= 0;
+    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx + dy, n = 0;
+    for (;;) {
+      fn(x0, y0);
+      if ((x0 === x1 && y0 === y1) || ++n > 4000) break;
+      const e2 = 2 * err;
+      if (e2 >= dy) { err += dy; x0 += sx; }
+      if (e2 <= dx) { err += dx; y0 += sy; }
+    }
+  }
+
   const Scene = (() => {
     const cv = $("#scene"), ctx = cv.getContext("2d");
-    let W = 0, H = 0, dpr = 1, stars = [], cloudTex = null;
+    let S = 3, W = 0, H = 0, backdrop = null, earth = null, ov = null, og = null, oimg = null, obuf = null;
+    let stars = [];
     const cam = { hz: 0.6, h: 1.3, sp: 3, z: 0 };
     let landStart = -1, visible = false;
-    const ACC = [255, 90, 36], CY = [143, 233, 255];
+    const P = {
+      void: hex3("#020409"), deep: hex3("#060b1c"), navy: hex3("#0a1633"), navy2: hex3("#13244f"), navy3: hex3("#1e3a78"),
+      blue: hex3("#3d7bff"), ice: hex3("#9cc4ff"), white: hex3("#e8f0ff"), acc: hex3("#ff5a24"), accD: hex3("#8a2a0e"), accS: hex3("#ff9a74"),
+      land1: hex3("#3a2c24"), land2: hex3("#7a5c3e"), land3: hex3("#b08a5c"), teal: hex3("#1f5a5a"),
+    };
+    const GRID = pk(95, 184, 224), GRID_B = pk(143, 233, 255), HZ = pk(255, 181, 154), HZG = pk(255, 90, 36), FOG = pk(7, 18, 40), WHITE = pk(255, 255, 255);
+
+    function buildBackdrop() {
+      const pad = 30, w = W + pad * 2, h = Math.ceil(H * 1.6);
+      const ramp = [P.void, P.deep, P.navy, P.navy2, P.navy3, P.blue, P.ice];
+      backdrop = paint(w, h, (x, y) => {
+        let v = 0.02 + 0.12 * (y / h);
+        const nx = x / w, ny = y / H;
+        const dl = Math.abs((ny - 0.05) - (nx - 0.55) * 1.4) / 1.72;
+        const mask = Math.max(0, 1 - dl / 0.3) * (nx > 0.35 ? 1 : 0.2) * (ny < 1.1 ? 1 : Math.max(0, 1 - (ny - 1.1) * 3));
+        if (mask > 0) v += mask * smooth(clamp((fbm(x * 0.022, y * 0.03, 5) - 0.38) / 0.4, 0, 1)) * 0.7;
+        const wm = Math.max(0, 1 - Math.hypot(nx - 0.3, ny - 0.13) / 0.12);
+        if (wm > 0 && bay(x, y) < wm * 0.18) return P.accD;
+        return pick(ramp, clamp(v, 0, 1), x, y);
+      });
+      backdrop.pad = pad;
+      stars = [];
+      let seed = 11;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      for (let i = 0, n = Math.floor((w * h) / 700); i < n; i++) {
+        const r = rnd();
+        stars.push({ x: Math.floor(rnd() * w), y: Math.floor(rnd() * h), c: r < 0.1 ? P.accS : r < 0.55 ? P.ice : P.white, ph: rnd() * 6.28, sp: 0.4 + rnd() * 1.2, big: rnd() < 0.03 });
+      }
+    }
+    function buildEarth() {
+      const w = W + 40, h = Math.ceil(H * 1.0);
+      const R = W * 0.95, cx = w / 2, cy = R + 14;
+      const ocean = [P.void, P.navy, P.navy2, P.navy3, P.blue], cloud = [P.navy3, P.blue, P.ice, P.white, P.white], land = [P.land1, P.teal, P.land2, P.land3];
+      earth = paint(w, h, (x, y) => {
+        const dx = x - cx, dy = y - cy, d = Math.sqrt(dx * dx + dy * dy);
+        if (d < R) {
+          const u = dx / R, vv = dy / R, z = Math.sqrt(Math.max(0, 1 - u * u - vv * vv));
+          const light = clamp(0.5 + 0.35 * z - u * 0.15, 0, 1) * 0.6;
+          const sx = u / (z + 0.25), sy = vv / (z + 0.25);
+          const cl = fbm(sx * 9 + 3, sy * 14 + 1, 5), ln = fbm(sx * 5 + 40, sy * 8 + 12, 4);
+          const rim = R - d;
+          if (rim < 1.5) return P.ice;
+          if (rim < 3.5 && bay(x, y) < 0.5) return P.blue;
+          if (cl > 0.6) return pick(cloud, clamp(((cl - 0.6) / 0.35) * light, 0, 1), x, y);
+          if (ln > 0.57) return pick(land, clamp(((ln - 0.57) / 0.25) * light, 0, 1), x, y);
+          return pick(ocean, clamp(light * 0.7 + cl * 0.2, 0, 1), x, y);
+        }
+        const a = d - R;
+        if (a < 10) {
+          const t = 1 - a / 10 + (bay(x, y) - 0.5) * 0.5;
+          if (t > 0.85) return P.ice;
+          if (t > 0.6) return P.blue;
+          if (t > 0.35) return [...P.navy3, 200];
+        }
+        return null;
+      });
+    }
 
     function resize() {
-      dpr = Math.min(devicePixelRatio || 1, 1.75);
-      W = innerWidth; H = innerHeight;
-      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
-      let seed = 9;
-      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-      stars = Array.from({ length: Math.round((W * H) / 5200) }, () => ({ x: rnd(), y: rnd() * 0.9, r: rnd() < 0.08 ? 1.6 : rnd() < 0.4 ? 1.1 : 0.7, ph: rnd() * 6.28, sp: 0.4 + rnd() * 1.2, warm: rnd() < 0.12 }));
-      // soft cloud texture for the earth
-      const tw = 256, th = 128;
-      cloudTex = mk(tw, th);
-      const g = cloudTex.getContext("2d"), img = g.createImageData(tw, th);
-      for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
-        const n = fbm(x * 0.05, y * 0.11, 5);
-        const a = clamp((n - 0.5) * 3, 0, 1);
-        const i = (y * tw + x) * 4;
-        img.data[i] = 220; img.data[i + 1] = 235; img.data[i + 2] = 255; img.data[i + 3] = a * 255;
-      }
-      g.putImageData(img, 0, 0);
+      const iw = innerWidth, ih = innerHeight;
+      S = iw >= 1600 ? 4 : iw >= 900 ? 3 : 2;
+      W = Math.ceil(iw / S); H = Math.ceil(ih / S);
+      cv.width = W; cv.height = H;
+      cv.style.width = W * S + "px"; cv.style.height = H * S + "px";
+      ctx.imageSmoothingEnabled = false;
+      ov = mk(W, H); og = ov.getContext("2d"); oimg = og.createImageData(W, H); obuf = new Uint32Array(oimg.data.buffer);
+      buildBackdrop(); buildEarth();
       computeKeys();
     }
 
-    // camera keyframes per section
+    // floating casino objects
+    const OBJ = [
+      { k: "chip", x: 0.52, y: 0.13, s: 7, c: [198, 30, 46], d: 1.4, ph: 0 },
+      { k: "die", x: 0.86, y: 0.15, s: 6, d: 1.1, ph: 1.7 },
+      { k: "card", x: 0.7, y: 0.29, s: 8, d: 0.8, ph: 3.1 },
+      { k: "chip", x: 0.37, y: 0.07, s: 4, c: [30, 58, 120], d: 0.6, ph: 2.2 },
+      { k: "chip", x: 0.95, y: 0.37, s: 4, c: [255, 90, 36], d: 1.8, ph: 4.4 },
+      { k: "die", x: 0.62, y: 0.06, s: 4, d: 1.6, ph: 0.8 },
+    ];
+    const PIPS = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]], 5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] };
+    function drawObj(o, t, mx, sl) {
+      const S0 = Math.max(3, Math.round(o.s * (W / 480) * 1.4));
+      const x = Math.round(o.x * W - mx * W * 0.04 * o.d), y = Math.round(o.y * H + Math.sin(t * 0.8 + o.ph) * 2 - sl * 0.04 * o.d);
+      const F = (c, X, Y, w = 1, h = 1) => { ctx.fillStyle = typeof c === "string" ? c : rgb(c); ctx.fillRect(X, Y, w, h); };
+      if (o.k === "chip") {
+        const a = t * 1.6 + o.ph, rx = Math.max(1, Math.round(S0 * Math.abs(Math.cos(a)))), r = S0;
+        for (let dy = -r; dy <= r; dy++) {
+          const half = Math.round(rx * Math.sqrt(Math.max(0, 1 - (dy / r) ** 2)));
+          if (half < 1 && rx > 1) continue;
+          F(o.c, x - half, y + dy, half * 2 + 1, 1);
+          if (rx > 2) { const st = ((dy + Math.floor(a * 6)) & 3) < 2 ? "#f2ece2" : rgb(o.c); F(st, x - half, y + dy); F(st, x + half, y + dy); }
+        }
+        if (rx > 3) for (let dy = -Math.round(r * 0.55); dy <= Math.round(r * 0.55); dy += 2) { const hh = Math.round(rx * 0.55 * Math.sqrt(Math.max(0, 1 - (dy / (r * 0.55)) ** 2))); F("rgba(242,236,226,.75)", x - hh, y + dy); F("rgba(242,236,226,.75)", x + hh, y + dy); }
+      } else if (o.k === "die") {
+        const face = 1 + (Math.floor(t * 0.9 + o.ph) % 6), s = S0;
+        F("#0b0d14", x - s - 1, y - s - 1, s * 2 + 3, s * 2 + 3);
+        F("#f2ece2", x - s, y - s, s * 2 + 1, s * 2 + 1);
+        F("#c9c0b0", x - s, y + s, s * 2 + 1, 1); F("#c9c0b0", x + s, y - s, 1, s * 2 + 1);
+        const g = Math.max(1, Math.round(s * 0.55));
+        for (const [px, py] of PIPS[face]) F(face === 1 ? "#c61e2e" : "#0b0d14", x + px * g, y + py * g, s > 5 ? 2 : 1, s > 5 ? 2 : 1);
+      } else {
+        const fl = Math.cos(t * 0.9 + o.ph), w = Math.max(1, Math.round(S0 * 0.75 * Math.abs(fl))), h = Math.round(S0 * 1.05);
+        F("#0b0d14", x - w - 1, y - h - 1, w * 2 + 3, h * 2 + 3);
+        if (fl > 0) {
+          F("#f2ece2", x - w, y - h, w * 2 + 1, h * 2 + 1);
+          if (w > 2) { F("#c61e2e", x, y - 2, 1, 5); F("#c61e2e", x - 1, y - 1, 3, 3); F("#c61e2e", x - w + 1, y - h + 1); }
+        } else {
+          F("#0a1230", x - w, y - h, w * 2 + 1, h * 2 + 1);
+          if (w > 1) { F("#ff5a24", x - w, y - h, w * 2 + 1, 1); F("#ff5a24", x - w, y + h, w * 2 + 1, 1); }
+        }
+      }
+    }
+
     let keys = [];
     const CAM = { lobby: { hz: 0.6, h: 1.3, sp: 3 }, rules: { hz: 0.44, h: 2.4, sp: 1.2 }, table: { hz: -0.45, h: 1.0, sp: 0 }, cashout: { hz: 0.56, h: 1.4, sp: 10 } };
     function computeKeys() {
@@ -323,37 +432,26 @@
       return keys[keys.length - 1].v;
     }
 
-    // light cycles
-    const cycles = [ACC, ACC, CY].map((c, i) => ({ c, x: (i - 1) * 4, z: 16 + i * 7, dir: i % 2 ? [0, 1] : [0, -1], trail: [], next: 0 }));
+    const CYC = [pk(255, 90, 36), pk(255, 90, 36), pk(143, 233, 255)], CYD = [pk(150, 52, 20), pk(150, 52, 20), pk(60, 120, 150)];
+    const cycles = CYC.map((c, i) => ({ c, d: CYD[i], x: (i - 1) * 4, z: 16 + i * 7, dir: i % 2 ? [0, 1] : [0, -1], trail: [] }));
     cycles.forEach((cy) => cy.trail.push([cy.x, cy.z]));
     function stepCycles(dt) {
       for (const cy of cycles) {
-        const sp = 5.5;
-        const nx = cy.x + cy.dir[0] * sp * dt, nz = cy.z + cy.dir[1] * sp * dt;
+        const nx = cy.x + cy.dir[0] * 5.5 * dt, nz = cy.z + cy.dir[1] * 5.5 * dt;
         const crossed = Math.floor(cy.x) !== Math.floor(nx) || Math.floor(cy.z) !== Math.floor(nz);
         cy.x = nx; cy.z = nz;
         const out = Math.abs(cy.x) > 11 || cy.z < 13 || cy.z > 50;
         if (crossed && (out || Math.random() < 0.08)) {
           cy.x = Math.round(cy.x); cy.z = Math.round(cy.z);
           cy.trail.push([cy.x, cy.z]);
-          const opts = cy.dir[0] ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]];
-          let d = opts[Math.random() < 0.5 ? 0 : 1];
-          if (out) {
-            if (cy.x > 11) d = [-1, 0]; else if (cy.x < -11) d = [1, 0]; else if (cy.z > 50) d = [0, -1]; else if (cy.z < 13) d = [0, 1];
-          }
+          let d = cy.dir[0] ? [[0, 1], [0, -1]][Math.random() < 0.5 ? 0 : 1] : [[1, 0], [-1, 0]][Math.random() < 0.5 ? 0 : 1];
+          if (out) { if (cy.x > 11) d = [-1, 0]; else if (cy.x < -11) d = [1, 0]; else if (cy.z > 50) d = [0, -1]; else if (cy.z < 13) d = [0, 1]; }
           cy.dir = d;
         }
-        // trim trail to ~16 units
         let len = Math.abs(cy.x - cy.trail[cy.trail.length - 1][0]) + Math.abs(cy.z - cy.trail[cy.trail.length - 1][1]);
         for (let i = cy.trail.length - 1; i > 0; i--) {
-          const a = cy.trail[i], b = cy.trail[i - 1];
-          const seg = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
-          if (len + seg > 16) {
-            const keep = 16 - len, t = keep / (seg || 1);
-            cy.trail.splice(0, i - 1);
-            cy.trail[0] = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-            break;
-          }
+          const a = cy.trail[i], b = cy.trail[i - 1], seg = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+          if (len + seg > 16) { const tt = (16 - len) / (seg || 1); cy.trail.splice(0, i - 1); cy.trail[0] = [a[0] + (b[0] - a[0]) * tt, a[1] + (b[1] - a[1]) * tt]; break; }
           len += seg;
         }
       }
@@ -364,9 +462,7 @@
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
       if (!visible) return;
       const t = now / 1000;
-      // camera
-      const tg = target(scrollY + H * 0.5);
-      const k = reduceMotion ? 1 : 0.07;
+      const tg = target(scrollY + innerHeight * 0.5), k = reduceMotion ? 1 : 0.07;
       cam.hz = lerp(cam.hz, tg.hz, k); cam.h = lerp(cam.h, tg.h, k); cam.sp = lerp(cam.sp, tg.sp + Math.min(14, Math.abs(state.vel) * 0.25), k);
       let hz = cam.hz, h = cam.h;
       if (landStart >= 0) {
@@ -375,136 +471,107 @@
         if (lt >= 1) landStart = -1;
       }
       if (!reduceMotion) { cam.z += cam.sp * dt; stepCycles(dt); }
-      const mx = state.smx - 0.5, my = state.smy - 0.5;
-      const hzY = H * (hz - my * 0.04);
-      const vx = W / 2 - mx * W * 0.14;
-      const f = H * 0.95;
+      const mx = state.smx - 0.5, my = state.smy - 0.5, sl = scrollY / S;
+      const hzY = Math.round(H * (hz - my * 0.04));
+      const vx = W / 2 - mx * W * 0.14, f = H * 0.95;
 
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // sky
-      const sky = ctx.createLinearGradient(0, 0, 0, Math.max(H * 0.2, hzY));
-      sky.addColorStop(0, "#020409"); sky.addColorStop(1, "#071228");
-      ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
-      // nebula wash
-      const nb = ctx.createRadialGradient(W * 0.78 - mx * 40, hzY - H * 0.42, 0, W * 0.78, hzY - H * 0.42, W * 0.5);
-      nb.addColorStop(0, "rgba(60,110,255,0.16)"); nb.addColorStop(1, "rgba(60,110,255,0)");
-      ctx.fillStyle = nb; ctx.fillRect(0, 0, W, H);
-      const nb2 = ctx.createRadialGradient(W * 0.15 - mx * 30, hzY - H * 0.5, 0, W * 0.15, hzY - H * 0.5, W * 0.35);
-      nb2.addColorStop(0, "rgba(255,90,36,0.08)"); nb2.addColorStop(1, "rgba(255,90,36,0)");
-      ctx.fillStyle = nb2; ctx.fillRect(0, 0, W, H);
-      // stars
-      const sOff = (scrollY * 0.03) % H;
+      ctx.fillStyle = "#020409"; ctx.fillRect(0, 0, W, H);
+      const bx = Math.round(-backdrop.pad - mx * W * 0.02), by = Math.round(-Math.min(sl * 0.05, backdrop.height - H) - my * 6);
+      ctx.drawImage(backdrop, bx, by);
       for (const s of stars) {
-        const x = s.x * W - mx * 18, y = ((s.y * H - sOff + H) % H) - my * 10;
-        if (y > hzY) continue;
-        const a = reduceMotion ? 0.7 : 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * s.sp + s.ph));
-        ctx.fillStyle = s.warm ? `rgba(255,170,140,${a})` : `rgba(225,240,255,${a})`;
-        ctx.fillRect(x, y, s.r, s.r);
+        const x = s.x + bx, y = s.y + by;
+        if (x < 0 || x >= W || y < 0 || y >= Math.min(H, hzY)) continue;
+        const b = reduceMotion ? 0.8 : 0.5 + 0.5 * Math.sin(t * s.sp + s.ph);
+        if (b < 0.2) continue;
+        ctx.fillStyle = rgb(s.c, b > 0.65 ? 1 : 0.45);
+        ctx.fillRect(x, y, 1, 1);
+        if (s.big && b > 0.7) { ctx.fillRect(x - 1, y, 3, 1); ctx.fillRect(x, y - 1, 1, 3); }
       }
-      // earth, far below the plane — seen through the grid
+      // warm flare (top-left sun)
+      const fx = Math.round(W * 0.3 + bx + backdrop.pad), fy = Math.round(H * 0.13 + by);
+      if (fy > -20 && fy < hzY) {
+        const L = Math.round(6 + Math.sin(t * 1.3) * 2);
+        ctx.fillStyle = "#ff9a74"; ctx.fillRect(fx - L * 2, fy, L * 4 + 1, 1); ctx.fillRect(fx, fy - L * 2, 1, L * 4 + 1);
+        ctx.fillStyle = "#fff"; ctx.fillRect(fx - 1, fy - 1, 3, 3);
+      }
+      if (hzY > 0) for (const o of OBJ) drawObj(o, reduceMotion ? 0 : t, mx, sl);
+      if (hzY < H) ctx.drawImage(earth, Math.round(-20 - mx * W * 0.03), hzY + Math.round(H * 0.05) - 14);
+
+      const dim = clamp((scrollY - innerHeight * 0.5) / innerHeight, 0, 1) * 0.45;
+      if (dim > 0) { ctx.fillStyle = `rgba(2,4,9,${dim.toFixed(3)})`; ctx.fillRect(0, 0, W, H); }
+      // overlay: grid + horizon + light cycles (1-bit dither)
+      obuf.fill(0);
+      const plot = (x, y, c) => { if (x >= 0 && x < W && y >= 0 && y < H) obuf[y * W + x] = c; };
       if (hzY < H) {
-        const R = Math.max(W, H) * 1.25, ex = vx + (W / 2 - vx) * 0.6, ey = hzY + R + H * 0.07;
-        ctx.save();
-        ctx.beginPath(); ctx.arc(ex, ey, R, 0, Math.PI * 2); ctx.closePath();
-        const eg = ctx.createRadialGradient(ex, ey - R * 0.9, R * 0.05, ex, ey, R);
-        eg.addColorStop(0, "#1b4a8c"); eg.addColorStop(0.35, "#0b2350"); eg.addColorStop(1, "#030a1a");
-        ctx.fillStyle = eg; ctx.fill();
-        ctx.clip();
-        ctx.globalAlpha = 0.28;
-        const cw = R * 2.2, chh = R * 0.55;
-        ctx.drawImage(cloudTex, ex - cw / 2 + ((t * 6) % 40) - mx * 30, ey - R * 1.02, cw, chh);
-        ctx.globalAlpha = 1;
-        ctx.restore();
-        // atmosphere rim
-        ctx.save();
-        ctx.beginPath(); ctx.arc(ex, ey, R, Math.PI * 1.05, Math.PI * 1.95);
-        ctx.strokeStyle = "rgba(143,233,255,0.9)"; ctx.lineWidth = 1.5;
-        ctx.shadowColor = "rgba(120,200,255,1)"; ctx.shadowBlur = 24; ctx.stroke();
-        ctx.lineWidth = 10; ctx.strokeStyle = "rgba(100,170,255,0.12)"; ctx.shadowBlur = 40; ctx.stroke();
-        ctx.restore();
+        const zAt = (y) => (h * f) / Math.max(0.5, y - hzY + 0.5);
+        const fadeZ = 24;
+        for (let i = -30; i <= 30; i++) {
+          let zn = Math.max(0.5, i ? (Math.abs(i) * f) / (W * 1.4) : 0.5);
+          if (H > hzY) zn = Math.max(zn, (h * f) / (H - hzY));
+          const a = [vx + (i * f) / zn, hzY + (h * f) / zn], b = [vx + (i * f) / 60, hzY + (h * f) / 60];
+          const base = i === 0 ? 1 : 0.85;
+          bres(a[0], a[1], b[0], b[1], (x, y) => {
+            const al = clamp(1 - zAt(y) / fadeZ, 0, 1) * base;
+            if (bay(x, y) < al * al) plot(x, y, bay(x, y) < al * 0.5 ? GRID_B : GRID);
+          });
+        }
+        const off = cam.z % 1;
+        let lastY = -1;
+        for (let z = 1 - off + 1; z < 60; z += 1) {
+          const y = Math.round(hzY + (h * f) / z);
+          if (y >= H || y === lastY) continue;
+          lastY = y;
+          const al = clamp(1 - z / fadeZ, 0, 1);
+          const xl = Math.max(0, Math.round(vx - (30 * f) / z)), xr = Math.min(W - 1, Math.round(vx + (30 * f) / z));
+          for (let x = xl; x <= xr; x++) if (bay(x, y) < al * al) plot(x, y, bay(x, y) < al * 0.5 ? GRID_B : GRID);
+        }
+        // cycles
+        for (const cy of cycles) {
+          const pts = [...cy.trail, [cy.x, cy.z]];
+          if (pts.some((p) => p[1] < 9)) continue;
+          for (let i = 1; i < pts.length; i++) {
+            const A = pts[i - 1], B = pts[i];
+            const a = [vx + (A[0] * f) / A[1], hzY + (h * f) / A[1]], b = [vx + (B[0] * f) / B[1], hzY + (h * f) / B[1]];
+            bres(a[0], a[1], b[0], b[1], (x, y) => {
+              const z = zAt(y), hp = Math.max(1, Math.round((0.32 * f) / z));
+              for (let k2 = 1; k2 < hp; k2++) if (bay(x, y - k2) < 0.4) plot(x, y - k2, cy.d);
+              plot(x, y - hp, cy.c); plot(x, y, cy.c);
+            });
+          }
+          const hx = Math.round(vx + (cy.x * f) / cy.z), hy = Math.round(hzY + (h * f) / cy.z);
+          plot(hx, hy, WHITE); plot(hx + 1, hy, WHITE); plot(hx, hy - 1, WHITE); plot(hx + 1, hy - 1, WHITE);
+        }
+        // fog just under the horizon
+        for (let k2 = 1; k2 <= 4; k2++) for (let x = 0; x < W; x++) if (bay(x, hzY + k2) < 0.8 - k2 * 0.16) plot(x, hzY + k2, FOG);
       }
-      // horizon glow
-      if (hzY > -40 && hzY < H + 40) {
-        const hg = ctx.createLinearGradient(0, hzY - H * 0.12, 0, hzY + H * 0.1);
-        hg.addColorStop(0, "rgba(255,90,36,0)"); hg.addColorStop(0.55, "rgba(255,90,36,0.2)"); hg.addColorStop(0.62, "rgba(255,140,100,0.32)"); hg.addColorStop(1, "rgba(255,90,36,0)");
-        ctx.fillStyle = hg; ctx.fillRect(0, hzY - H * 0.12, W, H * 0.22);
-        ctx.fillStyle = "rgba(255,190,165,0.75)"; ctx.fillRect(0, hzY, W, 1);
+      if (hzY >= 0 && hzY < H) {
+        for (let x = 0; x < W; x++) plot(x, hzY, HZ);
+        for (let k2 = 1; k2 <= 7; k2++) for (let x = 0; x < W; x++) if (bay(x, hzY - k2) < (1 - k2 / 8) * 0.55) plot(x, hzY - k2, HZG);
       }
-      // grid floor
-      const near = 0.5, far = 70;
-      const P = (X, Z) => [vx + (X * f) / Z, hzY + (h * f) / Z];
-      ctx.lineWidth = 1;
-      for (let i = -36; i <= 36; i++) {
-        const a = P(i, near), b = P(i, far);
-        const g = ctx.createLinearGradient(a[0], a[1], b[0], b[1]);
-        const base = i === 0 ? 0.55 : 0.32;
-        g.addColorStop(0, `rgba(143,233,255,${base})`); g.addColorStop(0.6, `rgba(143,233,255,${base * 0.35})`); g.addColorStop(1, "rgba(143,233,255,0)");
-        ctx.strokeStyle = g;
-        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
-      }
-      const off = cam.z % 1;
-      for (let z = Math.ceil(near) - off + 1; z < far; z += 1) {
-        const y = hzY + (h * f) / z;
-        if (y > H + 2) continue;
-        const a = clamp(1 - z / 34, 0, 1);
-        ctx.fillStyle = `rgba(143,233,255,${0.34 * a * a})`;
-        ctx.fillRect(0, y, W, 1);
-      }
-      // light cycles
-      ctx.lineCap = "round"; ctx.lineJoin = "round";
-      for (const cy of cycles) {
-        const pts = [...cy.trail, [cy.x, cy.z]];
-        if (pts.some((p) => p[1] < 9)) continue;
-        const wallH = 0.32;
-        // wall
-        ctx.beginPath();
-        pts.forEach((p, i) => { const q = [vx + (p[0] * f) / p[1], hzY + ((h - wallH) * f) / p[1]]; i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
-        for (let i = pts.length - 1; i >= 0; i--) { const q = P(pts[i][0], pts[i][1]); ctx.lineTo(q[0], q[1]); }
-        ctx.closePath();
-        ctx.fillStyle = rgb(cy.c, 0.12); ctx.fill();
-        // floor line + top edge
-        ctx.save();
-        ctx.shadowColor = rgb(cy.c, 1); ctx.shadowBlur = 14;
-        ctx.strokeStyle = rgb(cy.c, 0.95); ctx.lineWidth = 1.6;
-        ctx.beginPath();
-        pts.forEach((p, i) => { const q = [vx + (p[0] * f) / p[1], hzY + ((h - wallH) * f) / p[1]]; i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
-        ctx.stroke();
-        ctx.restore();
-        const hd = P(cy.x, cy.z);
-        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(hd[0], hd[1], 1.8, 0, 6.29); ctx.fill();
-      }
-      // fade to sky at the far plane
-      if (hzY > 0 && hzY < H) {
-        const fg = ctx.createLinearGradient(0, hzY, 0, hzY + H * 0.06);
-        fg.addColorStop(0, "rgba(7,18,40,0.85)"); fg.addColorStop(1, "rgba(7,18,40,0)");
-        ctx.fillStyle = fg; ctx.fillRect(0, hzY + 1, W, H * 0.06);
-      }
+      og.putImageData(oimg, 0, 0);
+      ctx.drawImage(ov, 0, 0);
     }
 
-    addEventListener("resize", () => { resize(); });
+    addEventListener("resize", resize);
     addEventListener("load", computeKeys);
     document.fonts?.ready.then(computeKeys);
     resize();
-    return {
-      draw,
-      show() { visible = true; },
-      land() { visible = true; landStart = performance.now(); },
-      recompute: computeKeys,
-    };
+    return { draw, show() { visible = true; }, land() { visible = true; landStart = performance.now(); }, recompute: computeKeys };
   })();
 
   /* ----------------------------------------------------------
-     LOADER — an arcade cabinet on earth; enter pulls you
-     through the screen, up through the clouds, onto the grid.
+     LOADER — a player at a slot machine on earth. Enter: he
+     pulls the lever, 7-7-7, and we get pulled into the reel,
+     up through the clouds, out to the casino in space.
      ---------------------------------------------------------- */
   const Gate = (() => {
     const gate = $("#gate"), cv = $("#gateCanvas");
     if (!gate || !cv) return null;
     const g = cv.getContext("2d");
     const countEl = $("#gateCount"), barEl = $("#gateBar"), skipBtn = $("#gateSkip");
-    let S = 3, W = 0, H = 0, room = null, scr = null, sg = null, simg = null, L = {};
-    let clouds = null, gstars = [];
-    let running = true, ready = false, tEnter = -1, onDone = null, landed = false, unlocked = false, prog = 0;
+    let S = 3, W = 0, H = 0, room = null, player = null, L = {};
+    let clouds = null, gstars = [], coins = [];
+    let running = true, ready = false, tEnter = -1, onDone = null, landed = false, unlocked = false, prog = 0, jackpotFired = false;
     const t0 = performance.now();
     let loaded = false;
     Promise.all([
@@ -512,113 +579,155 @@
       document.fonts ? document.fonts.ready : Promise.resolve(),
     ]).then(() => { loaded = true; buildRoom(); });
 
-    const C = {
-      wall0: hex3("#05060f"), wall1: hex3("#0a0d1f"), wall2: hex3("#121734"), floor0: hex3("#030409"), floor1: hex3("#0a0e20"),
-      cab: hex3("#0d1122"), cabD: hex3("#070912"), cabL: hex3("#1a2038"), acc: hex3("#ff5a24"), accD: hex3("#8f2a0c"), accH: hex3("#ffd0bd"),
-      cy: hex3("#8fe9ff"), cyD: hex3("#1f5a7a"), iv: hex3("#f2ece2"), crt: hex3("#020611"), dim: hex3("#1e3a78"),
+    // 8x8 reel symbols
+    const SYMS = {
+      seven: ["........", ".rrrrrr.", ".RRRRrr.", "....rr..", "...rr...", "...rr...", "..rr....", "..rr...."],
+      cherry: ["....ggg.", "...g...g", "..g....g", ".rr...rr", "rwrr.rwr", "rrrr.rrr", ".rr..rr.", "........"],
+      bell: ["...yy...", "..yyyy..", ".yyyyyy.", ".ywyyyy.", ".yyyyyy.", "yyyyyyyy", "YYYYYYYY", "...YY..."],
+      diamond: ["...cc...", "..cwcc..", ".cwcccc.", "cccccccc", ".cccccC.", "..cccC..", "...CC...", "........"],
+      star: ["...yy...", "...yy...", "yyyyyyyy", ".yyyyyy.", "..yyyy..", ".yy..yy.", "yy....yy", "........"],
+      chip: ["..aaaa..", ".awwwwa.", "awaaaawa", "awa..awa", "awa..awa", "awaaaawa", ".awwwwa.", "..aaaa.."],
     };
+    const SPAL = { r: "#e8322a", R: "#8e1220", g: "#3fbf4f", y: "#ffcc33", Y: "#c98a12", c: "#8fe9ff", C: "#2f7fb0", w: "#ffffff", a: "#ff5a24" };
+    const STRIP = ["cherry", "bell", "seven", "diamond", "star", "chip", "bell", "cherry", "diamond", "star"];
+    const reels = [0, 1, 2].map((i) => ({ pos: 3 + i * 3.3, v: 0, spinning: false, stop: null }));
+    const symCache = {};
+    function sym(name, k) {
+      const key = name + k;
+      if (symCache[key]) return symCache[key];
+      const c = mk(8 * k, 8 * k), x = c.getContext("2d");
+      SYMS[name].forEach((row, yy) => [...row].forEach((ch, xx) => { if (SPAL[ch]) { x.fillStyle = SPAL[ch]; x.fillRect(xx * k, yy * k, k, k); } }));
+      return (symCache[key] = c);
+    }
 
     function layout() {
-      const floorY = Math.round(H * 0.84);
-      const ch = Math.round(Math.min(H * 0.74, W * 1.15));
-      const cw = Math.round(ch * 0.46);
-      const cx = Math.round(W / 2);
-      const top = floorY - ch;
-      const mh = Math.round(ch * 0.12);
-      const bh = Math.round(ch * 0.4);
-      const ph = Math.round(ch * 0.09);
-      const pad = Math.max(3, Math.round(cw * 0.08));
+      const floorY = Math.round(H * 0.8);
+      const mh = Math.round(Math.min(H * 0.8, W * 1.2));
+      const mw = Math.round(mh * 0.5);
+      const cx = Math.round(W / 2), top = floorY - mh;
+      const tH = Math.round(mh * 0.2), wY = top + tH + Math.round(mh * 0.05), wH = Math.round(mh * 0.25);
+      const wPad = Math.max(3, Math.round(mw * 0.1));
+      const wX = cx - (mw >> 1) + wPad, wW = mw - wPad * 2;
+      const reelW = Math.floor((wW - 4) / 3), cell = Math.floor(wH / 2.3);
+      const ledY = wY + wH + Math.round(mh * 0.035), ledH = Math.max(10, Math.round(mh * 0.06));
+      const deckY = ledY + ledH + Math.round(mh * 0.03), deckH = Math.round(mh * 0.05);
+      const hr = Math.max(5, Math.round(mw * 0.12));
       L = {
-        floorY, ch, cw, cx, top, x0: cx - (cw >> 1), x1: cx + (cw >> 1),
-        mY: top, mH: mh,
-        bY: top + mh + 1, bH: bh,
-        sX: cx - (cw >> 1) + pad, sY: top + mh + 1 + pad, sW: cw - pad * 2, sH: bh - pad * 2,
-        pY: top + mh + 1 + bh, pH: ph,
-        lY: top + mh + 1 + bh + ph,
+        floorY, mh, mw, cx, top, x0: cx - (mw >> 1), x1: cx + (mw >> 1), tH, wX, wY, wW, wH, reelW, cell,
+        ledY, ledH, deckY, deckH,
+        lever: { x: cx + (mw >> 1) + 3, y: wY + Math.round(wH * 0.55), len: Math.round(mh * 0.2) },
+        head: { x: cx - Math.round(mw * 0.16), y: deckY + Math.round(mh * 0.16), r: hr },
       };
+      L.shoulder = { x: L.head.x + Math.round(hr * 2.4), y: L.head.y + Math.round(hr * 2.2) };
     }
 
     function buildRoom() {
       layout();
-      const { floorY, cx, x0, x1, top, sX, sY, sW, sH } = L;
-      const scx = sX + sW / 2, scy = sY + sH / 2;
+      const { floorY, cx, x0, x1, top, mw, mh } = L;
       room = paint(W, H, (x, y) => {
         if (y < floorY) {
-          let v = 0.15 + 0.35 * (y / floorY);
-          const d = Math.hypot((x - scx) / (L.cw * 1.6), (y - scy) / (L.cw * 1.3));
-          const glow = Math.max(0, 1 - d);
-          const md = Math.hypot((x - cx) / (L.cw * 1.4), (y - (L.mY + L.mH / 2)) / (L.cw * 0.6));
-          const mg = Math.max(0, 1 - md);
-          if (mg * 0.7 > bay(x, y) + 0.15) return mg > 0.75 && bay(x + 2, y + 1) < 0.25 ? C.accD : [40, 14, 10];
-          if (glow * 0.9 > bay(x, y) + 0.1) return glow > 0.7 ? C.cyD : [14, 30, 58];
-          return pick([C.wall0, C.wall1, C.wall2], v, x, y);
+          // wall: dark wine to navy, a glow behind the machine, ceiling light bars
+          const v = 0.12 + 0.4 * (y / floorY);
+          const gd = Math.hypot((x - cx) / (mw * 1.5), (y - (top + mh * 0.35)) / (mh * 0.7));
+          const gl = Math.max(0, 1 - gd);
+          if (gl * 0.85 > bay(x, y) + 0.12) return gl > 0.6 ? [96, 30, 14] : [40, 14, 12];
+          return pick([[5, 5, 12], [12, 8, 20], [22, 12, 28]], v, x, y);
         }
-        // floor: dark, with reflection of the screen + cabinet light
+        // casino carpet: diamond pattern, darker toward the edges
         const fy = (y - floorY) / (H - floorY);
-        const rd = Math.hypot((x - scx) / (L.cw * 1.2), fy * 2.2);
-        const rg = Math.max(0, 1 - rd) * (1 - fy);
-        if (Math.abs(x - x0) < 1 || Math.abs(x - x1) < 1) { if (bay(x, y) < 0.7 - fy) return C.accD; }
-        if (rg * 0.8 > bay(x, y) + 0.1) return rg > 0.6 ? C.cyD : [12, 24, 46];
-        return pick([C.floor0, C.floor1], 0.25 * (1 - fy), x, y);
+        const u = x - cx, w = y - floorY + 4;
+        const p = ((((u + w * 2) >> 3) ^ ((u - w * 2) >> 3)) & 1);
+        const vig = 1 - Math.min(1, Math.abs(u) / (W * 0.6)) * 0.6;
+        const glow = Math.max(0, 1 - Math.hypot(u / (mw * 1.1), fy * 2.4));
+        if (glow * 0.7 > bay(x, y) + 0.1) return [80, 26, 14];
+        return bay(x, y) < (p ? 0.55 : 0.3) * vig ? (p ? [58, 14, 22] : [16, 22, 48]) : [8, 6, 14];
       });
       const r = room.getContext("2d");
       r.imageSmoothingEnabled = false;
-      const R = (c, x, y, w, h) => { r.fillStyle = rgb(c); r.fillRect(x | 0, y | 0, Math.max(1, w | 0), Math.max(1, h | 0)); };
-      // neighbouring cabinets: same build, smaller, dimmer
-      for (const k of [2, 1]) {
-        for (const side of [-1, 1]) {
-          const sc = k === 1 ? 0.8 : 0.64, cw = Math.round(L.cw * sc), ch = Math.round(L.ch * sc);
-          const sx = Math.round(cx + side * L.cw * (k === 1 ? 1.22 : 2.15) - cw / 2), sy = floorY - ch;
-          const glowC = side < 0 ? [24, 70, 104] : [104, 34, 16], trim = side < 0 ? [40, 110, 150] : [150, 50, 22];
-          const mh = Math.round(ch * 0.12), bh = Math.round(ch * 0.4), pad = Math.max(2, Math.round(cw * 0.08));
-          R([9, 11, 22], sx, sy, cw, ch);
-          R(trim, sx - 1, sy, 1, ch); R(trim, sx + cw, sy, 1, ch);
-          R(glowC, sx + 1, sy + 1, cw - 2, mh - 2);
-          R([3, 4, 8], sx + 1, sy + mh, cw - 2, bh);
-          R(side < 0 ? [8, 22, 40] : [36, 12, 8], sx + pad, sy + mh + pad, cw - pad * 2, bh - pad * 2);
-          for (let q = 0; q < 6; q++) R(trim, sx + pad + 2 + ((q * 7 + k * 3) % Math.max(3, cw - pad * 2 - 4)), sy + mh + pad + 3 + ((q * 5) % Math.max(3, bh - pad * 2 - 6)), 1, 1);
-          R([20, 24, 42], sx - 2, sy + mh + bh, cw + 4, Math.round(ch * 0.05));
-          R([4, 5, 10], sx, floorY - 2, cw, 2);
-          r.fillStyle = `rgba(4,5,11,${k === 1 ? 0.35 : 0.55})`; r.fillRect(sx - 3, sy, cw + 6, ch);
-        }
+      const R = (c, x, y, w, h) => { r.fillStyle = typeof c === "string" ? c : rgb(c); r.fillRect(x | 0, y | 0, Math.max(1, w | 0), Math.max(1, h | 0)); };
+      // neighbouring machines
+      for (const k of [2, 1]) for (const side of [-1, 1]) {
+        const sc = k === 1 ? 0.72 : 0.56, w = Math.round(mw * sc), h = Math.round(mh * sc);
+        const sx = Math.round(cx + side * mw * (k === 1 ? 1.15 : 2.0) - w / 2), sy = floorY - h;
+        R([24, 8, 12], sx, sy, w, h);
+        R([60, 20, 16], sx + 1, sy + 1, w - 2, Math.round(h * 0.18));
+        R([6, 6, 12], sx + Math.round(w * 0.12), sy + Math.round(h * 0.26), Math.round(w * 0.76), Math.round(h * 0.24));
+        R(side < 0 ? [20, 60, 90] : [90, 40, 20], sx + Math.round(w * 0.16), sy + Math.round(h * 0.3), Math.round(w * 0.68), Math.round(h * 0.16));
+        R([120, 128, 145], sx - 1, sy, 1, h); R([120, 128, 145], sx + w, sy, 1, h);
+        r.fillStyle = `rgba(5,5,12,${k === 1 ? 0.4 : 0.6})`; r.fillRect(sx - 2, sy, w + 4, h);
       }
-      // cabinet body
-      R(C.cab, x0, top, L.cw, L.ch);
-      R(C.cabD, x0, top, 2, L.ch);
-      R(C.cabL, x1 - 2, top, 2, L.ch);
-      // T-molding light strips
-      R(C.acc, x0 - 1, top, 1, L.ch); R(C.acc, x1, top, 1, L.ch);
-      r.fillStyle = "rgba(255,90,36,0.35)"; r.fillRect(x0 - 2, top, 1, L.ch); r.fillRect(x1 + 1, top, 1, L.ch);
-      // marquee
-      R([24, 8, 4], x0, L.mY, L.cw, L.mH);
-      for (let i = 0; i < L.mH - 2; i++) { const t = i / (L.mH - 2); r.fillStyle = `rgba(255,${90 + 60 * (1 - t)},${36 + 40 * (1 - t)},${0.75 - t * 0.35})`; r.fillRect(x0 + 2, L.mY + 1 + i, L.cw - 4, 1); }
-      r.fillStyle = "#2a0d06"; r.fillRect(x0 + 2, L.mY + L.mH - 2, L.cw - 4, 1);
-      const fs = Math.max(8, Math.floor(L.mH * 0.55 / 8) * 8);
-      r.font = `${fs}px Silkscreen, monospace`; r.textAlign = "center"; r.textBaseline = "middle";
-      r.fillStyle = "#1a0603"; r.fillText("OM KASHYAP", cx + 1, L.mY + L.mH / 2 + 1);
-      r.fillStyle = "#fff3ec"; r.fillText("OM KASHYAP", cx, L.mY + L.mH / 2);
-      // bezel
-      R([3, 4, 8], x0 + 1, L.bY, L.cw - 2, L.bH);
-      R([12, 15, 28], sX - 2, sY - 2, sW + 4, sH + 4);
-      // control panel
-      R(C.cabL, x0 - 3, L.pY, L.cw + 6, Math.ceil(L.pH * 0.55));
-      R([9, 11, 22], x0 - 3, L.pY + Math.ceil(L.pH * 0.55), L.cw + 6, L.pH - Math.ceil(L.pH * 0.55));
-      R(C.acc, x0 - 3, L.pY, L.cw + 6, 1);
-      const jy = L.pY + Math.round(L.pH * 0.3), jx = x0 + Math.round(L.cw * 0.3);
-      R([30, 30, 40], jx, jy - 3, 1, 4); R(C.acc, jx - 1, jy - 5, 3, 3);
-      R(C.cy, x0 + Math.round(L.cw * 0.58), jy - 1, 3, 2); R(C.acc, x0 + Math.round(L.cw * 0.72), jy - 2, 3, 2);
-      // lower body + coin door
-      const dw = Math.round(L.cw * 0.4), dh = Math.round((floorY - L.lY) * 0.45), dx = cx - (dw >> 1), dy = L.lY + Math.round((floorY - L.lY) * 0.2);
-      R([16, 20, 38], dx, dy, dw, dh);
-      R([5, 6, 12], dx + 1, dy + 1, dw - 2, 1);
-      L.coin = [[dx + Math.round(dw * 0.25), dy + Math.round(dh * 0.3)], [dx + Math.round(dw * 0.62), dy + Math.round(dh * 0.3)]];
-      R([5, 6, 12], x0, floorY - 3, L.cw, 3);
-      // screen buffer
-      scr = mk(sW, sH); sg = scr.getContext("2d"); simg = sg.createImageData(sW, sH);
+      // the machine
+      const CH = "#9aa3b5", CHD = "#5a6275";
+      R("#1c0a0e", x0, top + L.tH, mw, mh - L.tH);
+      R(CH, x0 - 1, top + L.tH, 1, mh - L.tH); R(CHD, x0, top + L.tH, 1, mh - L.tH); R(CH, x1, top + L.tH, 1, mh - L.tH);
+      // topper (stepped arch)
+      const tw = mw + 4, tx = x0 - 2, th = L.tH;
+      for (let i = 0; i < th; i++) {
+        const inset = i < 4 ? [6, 3, 2, 1][i] : 0;
+        R(i < 2 ? "#ff5a24" : "#3a0f0c", tx + inset, top + i, tw - inset * 2, 1);
+      }
+      R("#14060a", tx + 4, top + 4, tw - 8, th - 7);
+      let fs = Math.max(8, Math.floor((th * 0.42) / 8) * 8);
+      r.textAlign = "center"; r.textBaseline = "middle";
+      r.font = `${fs}px Silkscreen, monospace`;
+      while (fs > 8 && r.measureText("OM KASHYAP").width > tw - 14) { fs -= 8; r.font = `${fs}px Silkscreen, monospace`; }
+      r.fillStyle = "#2a0d06"; r.fillText("OM KASHYAP", cx + 1, top + th / 2 + 1);
+      r.fillStyle = "#ffe2d6"; r.fillText("OM KASHYAP", cx, top + th / 2);
+      // reel bezel
+      R(CH, L.wX - 3, L.wY - 3, L.wW + 6, L.wH + 6);
+      R("#0b0d14", L.wX - 1, L.wY - 1, L.wW + 2, L.wH + 2);
+      // LED panel + deck + buttons
+      R("#05060b", L.wX, L.ledY, L.wW, L.ledH);
+      R(CHD, L.wX - 1, L.ledY - 1, L.wW + 2, 1);
+      R("#2a1216", x0 - 3, L.deckY, mw + 6, L.deckH);
+      R(CH, x0 - 3, L.deckY, mw + 6, 1);
+      for (let i = 0; i < 3; i++) R(["#ff5a24", "#8fe9ff", "#ffcc33"][i], x0 + Math.round(mw * (0.25 + i * 0.22)), L.deckY + 2, Math.max(2, Math.round(mw * 0.08)), 2);
+      // belly glass
+      const by = L.deckY + L.deckH + 2, bh = Math.round(mh * 0.12);
+      R("#2a0f12", L.wX, by, L.wW, bh);
+      R("#ff5a24", L.wX, by, L.wW, 1);
+      r.font = `8px Silkscreen, monospace`; r.fillStyle = "#ff9a74"; r.fillText("THE HOUSE", cx, by + bh / 2);
+      // coin tray
+      const ty = floorY - Math.round(mh * 0.1);
+      R(CH, L.wX - 2, ty, L.wW + 4, 2); R("#0b0d14", L.wX, ty + 2, L.wW, Math.round(mh * 0.04));
+      L.tray = { x: cx, y: ty };
+      // lever housing
+      R(CH, L.lever.x - 1, L.lever.y - 2, 4, 6); R(CHD, L.lever.x, L.lever.y - 1, 2, 4);
+      R("#05050a", x0 - 1, floorY - 2, mw + 2, 2);
+      buildPlayer();
+    }
+
+    // the player, from behind: a silhouette with rim light from the machine
+    function buildPlayer() {
+      const { x: hx, y: hy, r: hr } = L.head;
+      const mask = new Uint8Array(W * H);
+      const set = (x, y) => { if (x >= 0 && y >= 0 && x < W && y < H) mask[y * W + x] = 1; };
+      for (let y = hy - hr - 1; y <= hy + hr; y++) {
+        const dy = (y - hy) / (hr + (y < hy ? 1 : 0));
+        const half = Math.round(hr * 0.92 * Math.sqrt(Math.max(0, 1 - dy * dy)));
+        for (let x = hx - half; x <= hx + half; x++) set(x, y);
+      }
+      const nw = Math.round(hr * 0.45);
+      for (let y = hy + hr - 1; y < hy + hr * 1.5; y++) for (let x = hx - nw; x <= hx + nw; x++) set(x, y);
+      const y0 = Math.round(hy + hr * 1.3);
+      for (let y = y0; y < H; y++) {
+        const t = clamp((y - y0) / (hr * 1.3), 0, 1);
+        const half = Math.round(lerp(hr * 0.9, hr * 2.9, smooth(t)) + (y - y0) * 0.08);
+        for (let x = hx - half; x <= hx + half; x++) set(x, y);
+      }
+      player = paint(W, H, (x, y) => {
+        if (!mask[y * W + x]) return null;
+        const up = y > 0 && !mask[(y - 1) * W + x];
+        const right = x < W - 1 && !mask[y * W + x + 1];
+        const left = x > 0 && !mask[y * W + x - 1];
+        if (up) return [255, 150, 110];
+        if (right) return [150, 60, 30];
+        if (left) return [30, 60, 90];
+        return bay(x, y) < 0.08 ? [16, 12, 22] : [6, 6, 12];
+      });
     }
 
     function genClouds() {
-      // three layers at half resolution; clear at both ends, dense in the middle
       const hw = Math.ceil(W / 2), hh = Math.ceil(H / 2);
       const mkLayer = (len, sc, seedX, alpha) => {
         const lh = Math.round(hh * len);
@@ -654,82 +763,138 @@
     addEventListener("resize", resize);
     setTimeout(() => { if (!clouds) genClouds(); }, 350);
 
-    // ---- the game on the screen: dithered octahedron + roulette ball
-    const N = [];
-    for (const a of [-1, 1]) for (const b of [-1, 1]) for (const c of [-1, 1]) N.push([a, b, c]);
-    const LV = (() => { const v = [-0.45, -0.65, -0.62]; const m = Math.hypot(...v); return v.map((k) => k / m); })();
-    let ax = 0.6, ay = 0.4;
-    function renderScreen(t, flash) {
-      const w = scr.width, h = scr.height, d = simg.data;
-      const put = (i, c) => { const k = i * 4; d[k] = c[0]; d[k + 1] = c[1]; d[k + 2] = c[2]; d[k + 3] = 255; };
-      if (!reduceMotion) { ay += 0.016 * (0.32 + (state.mx - 0.5) * 0.9); ax += ((0.55 + (state.my - 0.5) * 0.9) - ax) * 0.04; }
-      const ca = Math.cos(ax), sa = Math.sin(ax), cb = Math.cos(ay), sb = Math.sin(ay);
-      const toObj = (x, y, z) => { const y1 = ca * y + sa * z, z1 = -sa * y + ca * z; return [cb * x - sb * z1, y1, sb * x + cb * z1]; };
-      const toWorld = (x, y, z) => { const x1 = cb * x + sb * z, z1 = -sb * x + cb * z; return [x1, ca * y - sa * z1, sa * y + ca * z1]; };
-      for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) put(i, y & 1 ? [1, 4, 12] : C.crt);
-      const R = Math.min(w, h) * 0.27, cx = w / 2, cy = h * 0.44;
-      const ex = 1.3 / R;
-      const dir = toObj(0, 0, 1);
-      const cover = new Uint8Array(w * h);
-      // orbit (behind)
-      const orx = R * 1.7, ory = R * 0.4;
-      for (let k = 0; k < 120; k += 3) { const a = (k / 120) * 6.283; const x = (cx + Math.cos(a) * orx) | 0, y = (cy + Math.sin(a) * ory) | 0; if (x >= 0 && y >= 0 && x < w && y < h) put(y * w + x, C.dim); }
-      for (let y = Math.max(0, (cy - R * 1.05) | 0); y <= Math.min(h - 1, cy + R * 1.05); y++) for (let x = Math.max(0, (cx - R * 1.05) | 0); x <= Math.min(w - 1, cx + R * 1.05); x++) {
-        const o = toObj((x - cx) / R, (y - cy) / R, -3);
-        let tin = -1e9, tout = 1e9, ni = -1, miss = false;
-        for (let k = 0; k < 8; k++) {
-          const n = N[k];
-          const nd = n[0] * dir[0] + n[1] * dir[1] + n[2] * dir[2], no = n[0] * o[0] + n[1] * o[1] + n[2] * o[2];
-          if (Math.abs(nd) < 1e-6) { if (no > 1) { miss = true; break; } continue; }
-          const tt = (1 - no) / nd;
-          if (nd < 0) { if (tt > tin) { tin = tt; ni = k; } } else if (tt < tout) tout = tt;
-        }
-        if (miss || tin > tout || ni < 0) continue;
-        const p = [o[0] + dir[0] * tin, o[1] + dir[1] * tin, o[2] + dir[2] * tin];
-        const i = y * w + x;
-        cover[i] = 1;
-        if (Math.min(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])) < ex) { put(i, C.acc); continue; }
-        const n = N[ni], nw = toWorld(n[0] / 1.732, n[1] / 1.732, n[2] / 1.732);
-        let v = Math.max(0, -(nw[0] * LV[0] + nw[1] * LV[1] + nw[2] * LV[2]));
-        v = 0.08 + 0.92 * Math.pow(v, 1.3);
-        put(i, bay(x, y) < v ? C.iv : C.crt);
-      }
-      const ba = t * 1.35, bx = Math.round(cx + Math.cos(ba) * orx), by = Math.round(cy + Math.sin(ba) * ory);
-      for (const [ox, oy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
-        const X = bx + ox, Y = by + oy;
-        if (X < 0 || Y < 0 || X >= w || Y >= h) continue;
-        if (Math.sin(ba) < 0 && cover[Y * w + X]) continue;
-        put(Y * w + X, C.accH);
-      }
-      // CRT corners
-      for (const [x, y] of [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1], [1, 0], [0, 1], [w - 2, 0], [w - 1, 1], [0, h - 2], [1, h - 1], [w - 2, h - 1], [w - 1, h - 2]]) put(y * w + x, [3, 4, 8]);
-      sg.putImageData(simg, 0, 0);
-      // HUD text
-      const fs = 8;
-      sg.font = `${fs}px Silkscreen, monospace`; sg.textAlign = "center"; sg.textBaseline = "alphabetic";
-      const txt = !ready ? `LOADING ${String(Math.round(prog * 100)).padStart(3, "0")}` : (Math.floor(t * 1.6) % 2 ? "PRESS ENTER" : "INSERT COIN");
-      if (ready || Math.floor(t * 4) % 4) { sg.fillStyle = ready ? "#ffd0bd" : "#8fe9ff"; sg.fillText(txt, w / 2, h - 5); }
-      sg.textAlign = "left"; sg.fillStyle = "#ff5a24"; sg.fillText("1UP", 4, fs + 2);
-      sg.textAlign = "right"; sg.fillStyle = "#f2ece2"; sg.fillText("HI 2026", w - 4, fs + 2);
-      if (flash > 0) { sg.fillStyle = `rgba(255,240,232,${flash})`; sg.fillRect(0, 0, w, h); }
+    // timeline (seconds after enter)
+    const T = { reach: 0.28, pull: 0.55, back: 0.85, spin: 0.5, stops: [1.15, 1.45, 1.75], jackpot: 1.95, zoom: 2.25, zoomEnd: 3.2, beamEnd: 3.6, flyEnd: 5.8 };
+
+    function leverState(te) {
+      // 0 = up, 1 = fully pulled
+      if (te < 0) return 0;
+      if (te < T.reach) return 0;
+      if (te < T.pull) return easeIn((te - T.reach) / (T.pull - T.reach));
+      if (te < T.back) return 1 - easeOut((te - T.pull) / (T.back - T.pull));
+      return 0;
     }
 
-    function drawRoom(k, fx, fy, t, flash) {
+    function drawMachine(t, te) {
+      const { cx, x0, mw, top, tH } = L;
+      // topper bulbs
+      const jack = te >= T.jackpot;
+      const per = [];
+      for (let x = x0; x <= x0 + mw; x += 3) per.push([x, top + 1]);
+      for (let y = top + 3; y < top + tH - 2; y += 3) { per.push([x0 - 1, y]); per.push([x0 + mw + 1, y]); }
+      per.forEach(([x, y], i) => {
+        const on = jack ? Math.floor(t * 12) % 2 === 0 : (i + Math.floor(t * 8)) % 3 === 0;
+        g.fillStyle = on ? "#fff3c4" : "#5a2416"; g.fillRect(x, y, 1, 1);
+      });
+      // reels
+      g.save();
+      g.beginPath(); g.rect(L.wX, L.wY, L.wW, L.wH); g.clip();
+      g.fillStyle = "#f2ece2"; g.fillRect(L.wX, L.wY, L.wW, L.wH);
+      const k = Math.max(1, Math.floor(Math.min(L.reelW, L.cell) * 0.78 / 8));
+      const cyR = L.wY + L.wH / 2;
+      reels.forEach((rl, i) => {
+        const rx = L.wX + 1 + i * (L.reelW + 1);
+        const fast = rl.spinning && !rl.stop;
+        for (let j = Math.floor(rl.pos) - 2; j <= Math.floor(rl.pos) + 2; j++) {
+          const name = STRIP[((j % STRIP.length) + STRIP.length) % STRIP.length];
+          const yy = Math.round(cyR + (rl.pos - j) * L.cell - 4 * k);
+          const xx = Math.round(rx + (L.reelW - 8 * k) / 2);
+          if (fast) { g.globalAlpha = 0.45; g.drawImage(sym(name, k), xx, yy - Math.round(L.cell * 0.18)); g.drawImage(sym(name, k), xx, yy + Math.round(L.cell * 0.18)); g.globalAlpha = 1; }
+          else g.drawImage(sym(name, k), xx, yy);
+        }
+        if (i < 2) { g.fillStyle = "#9aa3b5"; g.fillRect(rx + L.reelW, L.wY, 1, L.wH); }
+      });
+      // curvature shading (dithered)
+      for (let y = L.wY; y < L.wY + L.wH; y++) {
+        const d = Math.abs(y - cyR) / (L.wH / 2);
+        if (d < 0.45) continue;
+        for (let x = L.wX; x < L.wX + L.wW; x++) if (bay(x, y) < (d - 0.45) * 1.3) { g.fillStyle = "#0b0d14"; g.fillRect(x, y, 1, 1); }
+      }
+      g.fillStyle = jack && Math.floor(t * 12) % 2 ? "#ffcc33" : "#e8322a"; g.fillRect(L.wX, Math.round(cyR), L.wW, 1);
+      g.restore();
+      // LED text
+      g.font = "8px Silkscreen, monospace"; g.textAlign = "center"; g.textBaseline = "middle";
+      let txt, col;
+      if (te >= T.jackpot) { txt = "JACKPOT"; col = Math.floor(t * 10) % 2 ? "#ffcc33" : "#ff5a24"; }
+      else if (te >= 0) { txt = "GOOD LUCK"; col = "#8fe9ff"; }
+      else if (!ready) { txt = `LOADING ${String(Math.round(prog * 100)).padStart(3, "0")}`; col = "#8fe9ff"; }
+      else { txt = Math.floor(t * 1.6) % 2 ? "PULL TO PLAY" : "PRESS ENTER"; col = "#ffd0bd"; }
+      g.fillStyle = col; g.fillText(txt, cx, L.ledY + L.ledH / 2 + 1);
+    }
+
+    function drawLever(te) {
+      const p = leverState(te), lv = L.lever;
+      const tipY = Math.round(lv.y - lv.len * (1 - p) + lv.len * 0.25 * p);
+      const ballR = Math.max(2, Math.round(lv.len * 0.09 * (1 + p * 0.5)));
+      g.fillStyle = "#c9d1e0"; g.fillRect(lv.x + 1, Math.min(tipY, lv.y), 2, Math.abs(lv.y - tipY) + 1);
+      g.fillStyle = "#5a6275"; g.fillRect(lv.x + 2, Math.min(tipY, lv.y), 1, Math.abs(lv.y - tipY) + 1);
+      for (let dy = -ballR; dy <= ballR; dy++) { const hw = Math.round(Math.sqrt(ballR * ballR - dy * dy)); g.fillStyle = "#e8322a"; g.fillRect(lv.x + 2 - hw, tipY + dy, hw * 2 + 1, 1); }
+      g.fillStyle = "#ffb0a0"; g.fillRect(lv.x + 1 - Math.round(ballR / 2), tipY - Math.round(ballR / 2), 1, 1);
+      return { x: lv.x + 2, y: tipY };
+    }
+
+    function drawArm(ball, te) {
+      const sh = L.shoulder, hr = L.head.r;
+      const rest = { x: sh.x - Math.round(hr * 0.7), y: sh.y + Math.round(hr * 2.2) };
+      let reach = 0;
+      if (te >= 0) {
+        if (te < T.reach) reach = easeOut(te / T.reach);
+        else if (te < T.back) reach = 1;
+        else if (te < T.back + 0.3) reach = 1 - easeInOut((te - T.back) / 0.3);
+      }
+      const hand = { x: Math.round(lerp(rest.x, ball.x, reach)), y: Math.round(lerp(rest.y, ball.y + 2, reach)) };
+      const elbow = { x: Math.round(lerp(sh.x + hr * 0.4, (sh.x + hand.x) / 2 + hr * 0.8, reach)), y: Math.round(lerp(sh.y + hr * 1.3, (sh.y + hand.y) / 2 + hr * 0.6, reach)) };
+      const th = Math.max(2, Math.round(hr * 0.55));
+      const rim = (x, y) => { g.fillStyle = "#ff966e"; g.fillRect(x - (th >> 1), y - (th >> 1) - 1, th, th); };
+      const stamp = (x, y) => { g.fillStyle = "#06060c"; g.fillRect(x - (th >> 1), y - (th >> 1), th, th); };
+      if (reach > 0.05) { bres(sh.x, sh.y, elbow.x, elbow.y, rim); bres(elbow.x, elbow.y, hand.x, hand.y, rim); }
+      bres(sh.x, sh.y, elbow.x, elbow.y, stamp); bres(elbow.x, elbow.y, hand.x, hand.y, stamp);
+      g.fillStyle = "#06060c"; g.fillRect(hand.x - th, hand.y - th + 1, th * 2, th * 2 - 1);
+      if (reach > 0.05) { g.fillStyle = "#ff966e"; g.fillRect(hand.x - th, hand.y - th + 1, th * 2, 1); }
+    }
+
+    function updateReels(te, dt) {
+      reels.forEach((rl, i) => {
+        if (te >= T.spin && !rl.spinning && !rl.done) { rl.spinning = true; rl.v = 0; }
+        if (!rl.spinning) return;
+        if (!rl.stop && te >= T.stops[i]) {
+          let tgt = Math.ceil(rl.pos + 2);
+          while (STRIP[((tgt % STRIP.length) + STRIP.length) % STRIP.length] !== "seven") tgt++;
+          rl.stop = { from: rl.pos, to: tgt, t0: te };
+          Sound.reel();
+        }
+        if (rl.stop) {
+          const p = clamp((te - rl.stop.t0) / 0.42, 0, 1);
+          const e = p < 1 ? 1 + 2.4 * Math.pow(p - 1, 3) + 1.4 * Math.pow(p - 1, 2) : 1;
+          rl.pos = lerp(rl.stop.from, rl.stop.to, e);
+          if (p >= 1) { rl.spinning = false; rl.done = true; rl.pos = rl.stop.to; }
+        } else {
+          rl.v = Math.min(22, rl.v + dt * 90);
+          rl.pos += rl.v * dt;
+        }
+      });
+    }
+
+    function drawCoins(dt) {
+      for (const c of coins) {
+        c.vy += 220 * dt; c.x += c.vx * dt; c.y += c.vy * dt;
+        g.fillStyle = (c.s + Math.floor(c.y)) & 2 ? "#ffcc33" : "#c98a12";
+        g.fillRect(Math.round(c.x), Math.round(c.y), 2, c.s & 1 ? 2 : 1);
+      }
+    }
+
+    function scene(k, fx, fy, t, te, dt) {
       g.setTransform(k, 0, 0, k, W / 2 - k * fx, H / 2 - k * fy);
       g.imageSmoothingEnabled = false;
       if (room) g.drawImage(room, 0, 0);
-      if (scr) {
-        renderScreen(t, flash);
-        g.drawImage(scr, L.sX, L.sY);
-        // screen glow pulse
-        g.fillStyle = `rgba(143,233,255,${0.03 + Math.sin(t * 7) * 0.01})`;
-        g.fillRect(L.sX, L.sY, L.sW, L.sH);
-      }
-      if (L.coin) for (const [x, y] of L.coin) { g.fillStyle = Math.floor(t * 2) % 2 ? "#ff5a24" : "#8f2a0c"; g.fillRect(x, y, 2, 4); }
+      drawMachine(t, te);
+      const ball = drawLever(te);
+      if (coins.length) drawCoins(dt);
+      if (player) g.drawImage(player, 0, 0);
+      drawArm(ball, te);
       g.setTransform(1, 0, 0, 1, 0, 0);
     }
 
-    const A = 1.05, B = 0.4, Cc = 2.3; // zoom, digitize, ascent durations
     let last = performance.now();
     function frame(now) {
       if (!running) return;
@@ -744,24 +909,31 @@
       if (pct === 100 && !ready) { ready = true; gate.classList.add("is-ready"); }
 
       if (tEnter < 0) {
-        drawRoom(1, W / 2, H / 2, t, 0);
+        scene(1, W / 2, H / 2, t, -1, dt);
       } else {
         const te = (now - tEnter) / 1000;
-        const scx = L.sX + L.sW / 2, scy = L.sY + L.sH / 2;
-        if (te < A) {
-          const p = easeIn(te / A);
-          const K = Math.max(W / L.sW, H / L.sH) * 1.06;
-          drawRoom(lerp(1, K, p), lerp(W / 2, scx, Math.min(1, p * 1.4)), lerp(H / 2, scy, Math.min(1, p * 1.4)), t, Math.pow(p, 5) * 0.95);
-        } else if (te < A + B) {
-          const p = (te - A) / B;
-          drawSky(0, t);
+        updateReels(te, dt);
+        if (te >= T.jackpot && !jackpotFired) {
+          jackpotFired = true; Sound.jackpot();
+          for (let i = 0; i < 46; i++) coins.push({ x: L.tray.x + (Math.random() - 0.5) * L.wW * 0.6, y: L.tray.y, vx: (Math.random() - 0.5) * 120, vy: -60 - Math.random() * 150, s: i });
+        }
+        const mid = { x: L.wX + 1 + L.reelW * 1.5 + 1, y: L.wY + L.wH / 2 };
+        if (te < T.zoom) scene(1, W / 2, H / 2, t, te, dt);
+        else if (te < T.zoomEnd) {
+          const p = easeIn((te - T.zoom) / (T.zoomEnd - T.zoom));
+          const K = Math.max(W / L.reelW, H / L.cell) * 1.15;
+          scene(lerp(1, K, p), lerp(W / 2, mid.x, Math.min(1, p * 1.5)), lerp(H / 2, mid.y, Math.min(1, p * 1.5)), t, te, dt);
+          if (p > 0.6) { g.fillStyle = `rgba(255,240,232,${Math.pow((p - 0.6) / 0.4, 2) * 0.95})`; g.fillRect(0, 0, W, H); }
+        } else if (te < T.beamEnd) {
+          const p = (te - T.zoomEnd) / (T.beamEnd - T.zoomEnd);
+          drawSky(0);
           const beam = Math.round(H * (1 - p));
           g.fillStyle = "#fff0e8"; g.fillRect(0, 0, W, beam);
-          for (let y = beam; y < Math.min(H, beam + 10); y++) for (let x = 0; x < W; x++) if (bay(x, y) < 1 - (y - beam) / 10) { g.fillStyle = (y - beam) < 2 ? "#ff5a24" : "#fff0e8"; g.fillRect(x, y, 1, 1); }
+          for (let y = beam; y < Math.min(H, beam + 10); y++) for (let x = 0; x < W; x++) if (bay(x, y) < 1 - (y - beam) / 10) { g.fillStyle = y - beam < 2 ? "#ff5a24" : "#fff0e8"; g.fillRect(x, y, 1, 1); }
           g.fillStyle = "rgba(255,90,36,0.9)"; g.fillRect(0, beam, W, 1);
         } else {
-          const p = clamp((te - A - B) / Cc, 0, 1);
-          drawSky(p, t);
+          const p = clamp((te - T.beamEnd) / (T.flyEnd - T.beamEnd), 0, 1);
+          drawSky(p);
           if (p > 0.55 && !unlocked) { unlocked = true; document.body.classList.remove("is-locked"); Scene.show(); }
           if (p > 0.72 && !landed) { landed = true; Scene.land(); Sound.land(); }
           cv.style.opacity = p > 0.74 ? String(1 - (p - 0.74) / 0.26) : "1";
@@ -771,13 +943,11 @@
       if (running) requestAnimationFrame(frame);
     }
 
-    function drawSky(p, t) {
-      // night sky turning to space
+    function drawSky(p) {
       const top = [lerp(14, 2, p), lerp(32, 4, p), lerp(72, 9, p)], bot = [lerp(36, 4, p), lerp(70, 8, p), lerp(130, 20, p)];
       const gr = g.createLinearGradient(0, 0, 0, H);
       gr.addColorStop(0, rgb(top)); gr.addColorStop(1, rgb(bot));
       g.fillStyle = gr; g.fillRect(0, 0, W, H);
-      // stars appear above the clouds
       if (p > 0.45) {
         const a = clamp((p - 0.45) / 0.3, 0, 1);
         for (const s of gstars) { g.fillStyle = `rgba(230,240,255,${a * (0.4 + s[2] * 0.6)})`; g.fillRect((s[0] * W) | 0, (s[1] * H) | 0, 1, 1); }
@@ -786,8 +956,7 @@
       const e = easeInOut(p);
       for (const L2 of clouds) {
         const c = L2.c, lh = c.height * 2;
-        const y = H - lh + (lh - H) * e;
-        g.drawImage(c, 0, Math.round(y), c.width * 2, lh);
+        g.drawImage(c, 0, Math.round(H - lh + (lh - H) * e), c.width * 2, lh);
       }
     }
 
@@ -799,7 +968,6 @@
       gate.remove();
       onDone && onDone();
     }
-
     skipBtn.addEventListener("click", () => { Sound.land(); finish(); });
     requestAnimationFrame(frame);
 
@@ -818,7 +986,9 @@
         tEnter = performance.now();
         gate.classList.add("is-flying");
         skipBtn.hidden = false;
-        setTimeout(() => Sound.whoosh(), (A + B) * 1000 - 300);
+        setTimeout(() => Sound.lever(), T.reach * 1000);
+        setTimeout(() => Sound.spin(), T.spin * 1000);
+        setTimeout(() => Sound.whoosh(), (T.zoomEnd - 0.2) * 1000);
       },
     };
   })();
@@ -892,14 +1062,15 @@
         tg.clearRect(0, 0, innerWidth, innerHeight);
         while (pts.length && now - pts[0].t > LIFE) pts.shift();
         if (pts.length < 2) return;
-        tg.lineCap = "square"; tg.lineJoin = "miter";
-        for (let pass = 0; pass < 2; pass++) {
-          for (let i = 1; i < pts.length; i++) {
-            const a = pts[i - 1], b = pts[i];
-            const age = clamp((now - b.t) / LIFE, 0, 1);
-            tg.strokeStyle = pass ? `rgba(255,230,220,${(1 - age) * 0.9})` : `rgba(255,90,36,${(1 - age) * 0.35})`;
-            tg.lineWidth = pass ? 1.2 * (1 - age) + 0.3 : 6 * (1 - age);
-            tg.beginPath(); tg.moveTo(a.x, a.y); tg.lineTo(b.x, b.y); tg.stroke();
+        const B = 3;
+        for (let i = 1; i < pts.length; i++) {
+          const a = pts[i - 1], b = pts[i];
+          const age = clamp((now - b.t) / LIFE, 0, 1);
+          const steps = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.y - a.y) / B));
+          for (let k = 0; k <= steps; k++) {
+            const x = Math.round(lerp(a.x, b.x, k / steps) / B) * B, y = Math.round(lerp(a.y, b.y, k / steps) / B) * B;
+            tg.fillStyle = `rgba(255,90,36,${(1 - age) * 0.28})`; tg.fillRect(x - B, y - B, B * 3, B * 3);
+            tg.fillStyle = age < 0.35 ? `rgba(255,236,226,${1 - age})` : `rgba(255,120,70,${1 - age})`; tg.fillRect(x - 1, y - 1, B, B);
           }
         }
       },
@@ -1007,7 +1178,7 @@
       const mol = cv.dataset.mol === "atp" ? atp() : c60();
       const ctx = cv.getContext("2d");
       let w = 0, h = 0, dpr = 1, vis = false, hover = 0;
-      const size = () => { dpr = Math.min(devicePixelRatio || 1, 2); const r = cv.getBoundingClientRect(); w = r.width; h = r.height; cv.width = w * dpr; cv.height = h * dpr; };
+      const size = () => { dpr = 1 / 3; const r = cv.getBoundingClientRect(); w = r.width; h = r.height; cv.width = Math.max(1, Math.round(w * dpr)); cv.height = Math.max(1, Math.round(h * dpr)); };
       size(); addEventListener("resize", size);
       new IntersectionObserver((en) => { vis = en[0].isIntersecting; if (vis) requestAnimationFrame(loop); }).observe(cv);
       cv.parentElement.addEventListener("pointerenter", () => (hover = 1));
@@ -1028,35 +1199,67 @@
           const persp = 1 / (1 + z2 * 0.5);
           return { x: w / 2 + x1 * S * persp, y: h / 2 + y1 * S * persp, z: z2, s: persp, e: a.e };
         });
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, w, h);
-        // floor ring
-        ctx.strokeStyle = "rgba(143,233,255,0.12)"; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.ellipse(w / 2, h * 0.9, S * 0.8, S * 0.12, 0, 0, 6.283); ctx.stroke();
-        // bonds
-        for (const [i, j, o] of mol.bonds) {
-          const a = pr[i], b = pr[j];
-          const depth = clamp(0.55 - (a.z + b.z) * 0.6, 0.12, 1);
-          ctx.strokeStyle = `rgba(143,233,255,${depth * 0.85})`;
-          ctx.lineWidth = 1;
-          if (o === 2) {
-            const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1, nx = (-dy / l) * 1.6, ny = (dx / l) * 1.6;
-            ctx.beginPath(); ctx.moveTo(a.x + nx, a.y + ny); ctx.lineTo(b.x + nx, b.y + ny); ctx.moveTo(a.x - nx, a.y - ny); ctx.lineTo(b.x - nx, b.y - ny); ctx.stroke();
-          } else { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+        const q = (v) => Math.round(v * dpr);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        const dot = (x, y, c, a) => { ctx.fillStyle = `rgba(${c},${a})`; ctx.fillRect(x, y, 1, 1); };
+        // floor ring (dotted)
+        for (let a = 0; a < 6.283; a += 0.12) dot(q(w / 2 + Math.cos(a) * S * 0.8), q(h * 0.9 + Math.sin(a) * S * 0.12), "143,233,255", 0.25);
+        for (const [i2, j2, o] of mol.bonds) {
+          const a = pr[i2], b = pr[j2];
+          const depth = clamp(0.55 - (a.z + b.z) * 0.6, 0.15, 1);
+          const off = o === 2 ? [[-1, 0], [1, 0]] : [[0, 0]];
+          for (const [ox, oy] of off) {
+            const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1;
+            const nx = Math.round((-dy / l) * ox * 1.2), ny = Math.round((dx / l) * ox * 1.2);
+            bres(q(a.x) + nx, q(a.y) + ny, q(b.x) + nx, q(b.y) + ny, (x, y) => dot(x, y, "143,233,255", depth * 0.9));
+          }
         }
-        // atoms, back to front
-        pr.map((p, i) => [p, i]).sort((A, B) => B[0].z - A[0].z).forEach(([p]) => {
-          const c = COL[p.e] || COL.C, r = (RAD[p.e] || 1.8) * p.s;
-          const depth = clamp(0.65 - p.z * 0.7, 0.2, 1);
-          if (p.e === "P") { ctx.save(); ctx.shadowColor = "rgba(255,90,36,1)"; ctx.shadowBlur = 12; }
+        pr.map((p) => p).sort((A, B) => B.z - A.z).forEach((p) => {
+          const c = COL[p.e] || COL.C, depth = clamp(0.7 - p.z * 0.7, 0.3, 1);
+          const sz = p.e === "P" ? 3 : p.s > 1.05 ? 2 : p.e === "C" && !mol.spin ? 2 : 1;
+          const x = q(p.x) - (sz >> 1), y = q(p.y) - (sz >> 1);
+          if (p.e === "P") { ctx.fillStyle = "rgba(255,90,36,0.35)"; ctx.fillRect(x - 1, y - 1, sz + 2, sz + 2); }
           ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${depth})`;
-          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.283); ctx.fill();
-          if (p.e === "P") ctx.restore();
+          ctx.fillRect(x, y, sz, sz);
         });
         requestAnimationFrame(loop);
       }
     });
   })();
+
+  /* ----------------------------------------------------------
+     PIXEL CHIPS — drawn into tiny canvases, scaled up crisp
+     ---------------------------------------------------------- */
+  const CHIP_COL = { red: ["#c61e2e", "#7d0f1b"], acc: ["#ff5a24", "#8a2a0e"], navy: ["#1e3a78", "#0f1f45"], cyan: ["#2f8fb0", "#14465a"] };
+  function drawChip(cv, ang, col, face = true) {
+    const n = cv.width, c = cv.getContext("2d"), r = n / 2 - 1, cx = n / 2 - 0.5, cy = n / 2 - 0.5;
+    const [base, dark] = CHIP_COL[col] || CHIP_COL.red;
+    c.clearRect(0, 0, n, n);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy);
+      if (d > r) continue;
+      let fill = base;
+      if (d > r - 1.2) fill = dark;
+      else if (d > r * 0.72) { const a = Math.atan2(dy, dx) + ang; fill = Math.floor(((a % 6.283) + 6.283) / (6.283 / 16)) % 2 ? "#f2ece2" : base; }
+      else if (face && Math.abs(d - r * 0.5) < 0.7) fill = Math.floor(((Math.atan2(dy, dx) - ang * 0.5 + 6.283) % 6.283) / 0.35) % 2 ? "#f2ece2" : base;
+      else if (d > r * 0.66) fill = dark;
+      c.fillStyle = fill; c.fillRect(x, y, 1, 1);
+    }
+  }
+  const chipCanvases = $$("canvas[data-chip]").map((cv) => ({ cv, col: cv.dataset.chip, a: Math.random() * 6, sp: parseFloat(cv.dataset.spin || "0.4") }));
+  chipCanvases.forEach((o) => drawChip(o.cv, o.a, o.col));
+  let chipHover = false;
+  $(".pchip")?.addEventListener("pointerenter", () => (chipHover = true));
+  $(".pchip")?.addEventListener("pointerleave", () => (chipHover = false));
+  function chipsFrame(dt) {
+    for (const o of chipCanvases) {
+      const r = o.cv.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > innerHeight) continue;
+      o.a += dt * o.sp * (o.cv.closest(".pchip") && chipHover ? 6 : 1) + Math.abs(state.vel) * 0.002;
+      drawChip(o.cv, o.a, o.col);
+    }
+  }
 
   /* ----------------------------------------------------------
      DOM PARALLAX
@@ -1085,7 +1288,7 @@
   const spot = $(".spotlight");
   const fullhouse = $(".fullhouse");
   const cards = $$(".card", cardsEl);
-  const discs = $$(".disc", table).map((el) => ({ el, d: parseFloat(el.dataset.depth) || 1, r: Math.random() * 360 }));
+  const discs = $$(".pchip-sm", table).map((el) => ({ el, d: parseFloat(el.dataset.depth) || 1, r: Math.random() * 360 }));
   const cardDepth = cards.map(() => 0.6 + Math.random() * 0.9);
   let dealt = 0, darkNow = 0.55, sp = { x: innerWidth / 2, y: innerHeight / 2 }, houseUp = false;
   const useSpot = !noHover && !reduceMotion;
@@ -1247,6 +1450,7 @@
     tableFrame(now);
     chapterFrame();
     Cursor && Cursor.frame(now);
+    chipsFrame(Math.min(0.05, (now - (frame.last || now)) / 1000)); frame.last = now;
     requestAnimationFrame(frame);
   }
 

@@ -30,7 +30,7 @@
         <p class="g-load"><span id="gateCount">000</span><span class="g-rule"><i id="gateBar"></i></span></p>
       </div>
       <div class="g-actions" id="gateActions">
-        <button class="g-enter" id="gateEnter" type="button">Press enter <span aria-hidden="true">↵</span></button>
+        <button class="g-enter" id="gateEnter" type="button">Pull the lever <span aria-hidden="true">↵</span></button>
         <button class="g-silent" id="gateSilent" type="button">Enter without sound</button>
       </div>
     </div>
@@ -69,7 +69,7 @@
     </div>
     <div class="m-bar">
       <button class="m-disc" id="mToggle" type="button" aria-expanded="false" aria-controls="mPanel" aria-label="Open player">
-        <span class="m-vinyl" aria-hidden="true"></span>
+        <canvas class="m-chip" width="12" height="12" data-chip="acc" data-spin="1.2" aria-hidden="true"></canvas>
       </button>
       <a class="m-now" id="mNow" href="#" target="_blank" rel="noopener">
         <span class="m-label" id="mLabel">The House Mix</span>
@@ -161,11 +161,11 @@
             </div>
           </header>
 
-          <div class="discs" aria-hidden="true">
-            <i class="disc" style="--x:4%;--y:20%;--s:70px" data-depth="2.6"></i>
-            <i class="disc d-cyan" style="--x:7%;--y:64%;--s:52px" data-depth="1.8"></i>
-            <i class="disc" style="--x:91%;--y:32%;--s:60px" data-depth="2.2"></i>
-            <i class="disc d-cyan" style="--x:88%;--y:78%;--s:46px" data-depth="1.5"></i>
+          <div class="chips" aria-hidden="true">
+            <canvas class="pchip-sm" width="16" height="16" data-chip="red" data-spin="0.5" style="--x:4%;--y:20%;--s:72px" data-depth="2.6"></canvas>
+            <canvas class="pchip-sm" width="14" height="14" data-chip="navy" data-spin="-0.4" style="--x:7%;--y:64%;--s:56px" data-depth="1.8"></canvas>
+            <canvas class="pchip-sm" width="16" height="16" data-chip="acc" data-spin="0.35" style="--x:91%;--y:32%;--s:64px" data-depth="2.2"></canvas>
+            <canvas class="pchip-sm" width="12" height="12" data-chip="cyan" data-spin="-0.6" style="--x:88%;--y:78%;--s:48px" data-depth="1.5"></canvas>
           </div>
 
           <div class="cards wrap" id="cards"></div>
@@ -183,13 +183,12 @@
         <div class="cash-copy">
           <p class="label">03 — Cash out</p>
           <h2 class="section-title" data-speed="-0.06"><span data-skew>CASH</span> <span class="stroke" data-skew>OUT</span></h2>
-          <p class="cash-sub">You've seen the hand. Take the disc for the full resume, or keep the receipt and get in touch.</p>
+          <p class="cash-sub">You've seen the hand. Take the chip for the full resume, or keep the receipt and get in touch.</p>
         </div>
 
-        <a class="idisc" href="#" data-resume aria-label="Open resume">
-          <span class="idisc-ring" aria-hidden="true"></span>
-          <span class="idisc-ring r2" aria-hidden="true"></span>
-          <span class="idisc-face"><b>Resume</b><small>Cash out ↗</small></span>
+        <a class="pchip" href="#" data-resume aria-label="Open resume">
+          <canvas width="40" height="40" data-chip="red" data-spin="0.5" aria-hidden="true"></canvas>
+          <span class="pchip-face"><b>Resume</b><small>Cash out ↗</small></span>
         </a>
 
         <div class="ledger" id="receipt">
