@@ -6,11 +6,29 @@
 window.SITE = {
   name: "Om Kashyap",
   title: "Developer & builder", // TODO: your one-line title
-  resumeUrl: "#", // TODO: paste your resume link here
+  resumeUrl: "assets/Om_Kashyap_Vedula_Resume.pdf",
   github: "https://github.com/Ketchup-69",
   githubHandle: "@Ketchup-69",
-  email: "", // TODO: e.g. "you@domain.com" (leave empty to hide)
-  linkedin: "", // TODO: full LinkedIn URL (leave empty to hide)
+  email: "", // optional: e.g. "you@domain.com" (leave empty to hide)
+  linkedin: "https://www.linkedin.com/in/vomkashyap",
+  linkedinHandle: "in/vomkashyap",
+};
+
+/* Apple Music player (bottom-left widget).
+   playlistUrl: link to your Apple Music playlist
+   embedUrl:    the embed link (Apple Music > Share > Embed, the iframe "src"),
+                e.g. "https://embed.music.apple.com/us/playlist/your-playlist/pl.xxxx"
+                When set, the widget plays the playlist right on the site.
+   tracks:      what the widget shows. Tapping a track opens it on Apple Music. */
+window.MUSIC = {
+  title: "The House Mix",
+  playlistUrl: "", // TODO
+  embedUrl: "", // TODO
+  tracks: [
+    { title: "Track one", artist: "Artist", url: "" },
+    { title: "Track two", artist: "Artist", url: "" },
+    { title: "Track three", artist: "Artist", url: "" },
+  ],
 };
 
 /* Projects = cards on the table. 4–6 works best.

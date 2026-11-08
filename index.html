@@ -4,121 +4,111 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Om Kashyap — The House</title>
-  <meta name="description" content="Om Kashyap — developer portfolio. Take a seat at the table." />
-  <meta name="theme-color" content="#05070F" />
+  <meta name="description" content="Om Kashyap — portfolio. Take a seat at the table." />
+  <meta name="theme-color" content="#020409" />
   <meta property="og:title" content="Om Kashyap — The House" />
   <meta property="og:description" content="Take a seat at the table." />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 9' shape-rendering='crispEdges'%3E%3Cpath fill='%23FF4E1A' d='M4 0h1v1h1v1h1v1h1v1h1v1H8v1H7v1H6v1H5v1H4V8H3V7H2V6H1V5H0V4h1V3h1V2h1V1h1z'/%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14L16 30 4 23V9z' fill='%23020409' stroke='%23FF5A24' stroke-width='2.5'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,400..900&family=IBM+Plex+Mono:wght@400;500&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Anybody:wdth,wght@50..150,400..900&family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&family=Silkscreen&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body class="is-locked">
   <canvas id="scene" aria-hidden="true"></canvas>
   <div class="vignette" aria-hidden="true"></div>
 
-  <!-- ENTRY / LOADER -->
-  <div class="gate" id="gate" role="dialog" aria-label="Loading. Enter the site when ready">
+  <!-- LOADER: the arcade on earth -->
+  <div class="gate" id="gate" role="dialog" aria-label="Loading. Press enter to start">
     <canvas id="gateCanvas" aria-hidden="true"></canvas>
-    <div class="g-frame" aria-hidden="true"></div>
-    <p class="g-corner g-tl"><span class="g-mark">◆</span> The House</p>
-    <p class="g-corner g-tr">Nº 001 — MMXXVI</p>
-    <div class="g-placard">
-      <p class="g-artist">Om Kashyap</p>
-      <p><em>The House</em>, 2026</p>
-      <p class="g-medium">Ordered dither, light and chance on void</p>
-      <p class="g-load"><span id="gateCount">000</span><span class="g-rule"><i id="gateBar"></i></span></p>
+    <div class="g-hud">
+      <p class="g-corner g-tl"><span class="g-dot"></span>The House</p>
+      <p class="g-corner g-tr">Earth · 17.68° N, 83.21° E</p>
+      <div class="g-placard">
+        <p class="g-artist">Om Kashyap</p>
+        <p class="g-sub">Portfolio, 2026</p>
+        <p class="g-load"><span id="gateCount">000</span><span class="g-rule"><i id="gateBar"></i></span></p>
+      </div>
+      <div class="g-actions" id="gateActions">
+        <button class="g-enter" id="gateEnter" type="button">Press enter <span aria-hidden="true">↵</span></button>
+        <button class="g-silent" id="gateSilent" type="button">Enter without sound</button>
+      </div>
     </div>
-    <div class="g-actions" id="gateActions">
-      <button class="g-enter" id="gateEnter" type="button">Enter <span aria-hidden="true">↵</span></button>
-      <button class="g-silent" id="gateSilent" type="button">Enter in silence</button>
-    </div>
+    <button class="g-skip" id="gateSkip" type="button" hidden>Skip</button>
   </div>
+
+  <!-- CURSOR -->
+  <canvas id="trail" aria-hidden="true"></canvas>
+  <div class="cursor" id="cursor" aria-hidden="true"><i class="c-ring"></i><i class="c-dot"></i></div>
 
   <!-- NAV -->
   <header class="nav">
-    <a class="logo" href="#lobby" aria-label="Back to top">OK</a>
+    <a class="brand" href="#lobby" aria-label="Om Kashyap, back to top">
+      <svg class="hex" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14L16 30 4 23V9z" /></svg>
+      <span>Om Kashyap</span>
+    </a>
     <nav class="nav-links" aria-label="Sections">
-      <a href="#table">Table</a>
-      <a href="#rules">Rules</a>
-      <a href="#cashout">Cash out</a>
+      <a href="#rules"><span>01</span>House rules</a>
+      <a href="#table"><span>02</span>The table</a>
+      <a href="#cashout"><span>03</span>Cash out</a>
     </nav>
-    <button class="snd" id="sndToggle" type="button" aria-pressed="true" aria-label="Toggle sound">
-      <span class="snd-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-      <span class="snd-label">Sound</span>
+    <button class="sfx" id="sndToggle" type="button" aria-pressed="true" aria-label="Toggle interface sounds">
+      <span class="sfx-bars" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="sfx-label">SFX</span>
     </button>
   </header>
 
+  <!-- HUD: chapter -->
+  <div class="chapter" aria-hidden="true"><span id="chapterNum">00</span><i></i><span id="chapterName">Lobby</span></div>
+
+  <!-- MUSIC -->
+  <aside class="music" id="music" aria-label="Music player">
+    <div class="m-panel" id="mPanel" hidden>
+      <div class="m-embed" id="mEmbed"></div>
+      <ol class="m-list" id="mList"></ol>
+    </div>
+    <div class="m-bar">
+      <button class="m-disc" id="mToggle" type="button" aria-expanded="false" aria-controls="mPanel" aria-label="Open player">
+        <span class="m-vinyl" aria-hidden="true"></span>
+      </button>
+      <a class="m-now" id="mNow" href="#" target="_blank" rel="noopener">
+        <span class="m-label" id="mLabel">The House Mix</span>
+        <span class="m-track"><span id="mTrack">Track one — Artist</span></span>
+      </a>
+      <button class="m-skip" id="mNext" type="button" aria-label="Next track">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l7 5-7 5zM11 3h2v10h-2z" /></svg>
+      </button>
+    </div>
+  </aside>
+
   <main>
-    <!-- 01 LOBBY -->
-    <section class="hero" id="lobby">
-      <p class="eyebrow hero-eyebrow"><span class="dot"></span> Now dealing — Portfolio MMXXVI</p>
+    <!-- 00 LOBBY -->
+    <section class="hero" id="lobby" data-chapter="00" data-name="Lobby">
+      <p class="label hero-label"><span class="pulse"></span>Portfolio — 2026</p>
       <h1 class="hero-name" aria-label="Om Kashyap">
         <span class="line" data-speed="-0.25"><span class="word w1" data-mouse="38">OM</span></span>
-        <span class="line" data-speed="-0.12"><span class="word w2" data-mouse="18" data-text="KASHYAP">KASHYAP</span></span>
+        <span class="line" data-speed="-0.12"><span class="word w2" data-mouse="18">KASHYAP</span></span>
       </h1>
       <div class="hero-foot" data-speed="0.08">
         <p class="hero-sub"><span data-site="title">Developer &amp; builder</span>. I build things and ship them. <span class="muted">[Placeholder line about what you're chasing.]</span></p>
         <div class="hero-cta">
-          <a class="btn" href="#table">Take a seat <span aria-hidden="true">↓</span></a>
-          <a class="chip-btn" href="#" data-resume>Resume</a>
+          <a class="btn btn-primary" href="#table">Take a seat</a>
+          <a class="btn" href="#" data-resume>Resume ↗</a>
         </div>
       </div>
-      <div class="scroll-cue" aria-hidden="true">Scroll <span>▾</span></div>
+      <div class="scroll-cue" aria-hidden="true"><i></i>Scroll</div>
     </section>
 
-
-    <!-- 02 THE TABLE -->
-    <section class="table" id="table">
-      <div class="felt">
-        <svg class="felt-print" viewBox="0 0 1000 260" aria-hidden="true">
-          <defs><path id="feltArc" d="M 60 40 Q 500 300 940 40" /></defs>
-          <text><textPath href="#feltArc" startOffset="50%" text-anchor="middle">THE HOUSE ALWAYS SHIPS · DEALER STANDS ON 17 · INSURANCE PAYS 2 TO 1</textPath></text>
-        </svg>
-
-        <header class="section-head wrap">
-          <p class="eyebrow">02 — The table</p>
-          <h2 class="section-title" data-speed="-0.1"><span data-skew>THE</span> <span class="stroke" data-skew>TABLE</span></h2>
-          <p class="hint" id="tableHint"><span class="hint-dot"></span> <span class="hint-text">Move your light across the felt to deal the cards.</span></p>
-          <div class="table-actions">
-            <button class="btn btn-sm" id="dealAll" type="button">Deal all</button>
-            <button class="btn btn-sm btn-ghost" id="reshuffle" type="button">Reshuffle</button>
-          </div>
-        </header>
-
-        <div class="chips" aria-hidden="true">
-          <i class="chip c-red" style="--x:4%;--y:18%;--s:74px" data-depth="2.6"></i>
-          <i class="chip c-navy" style="--x:7%;--y:62%;--s:58px" data-depth="1.8"></i>
-          <i class="chip c-amber" style="--x:91%;--y:30%;--s:66px" data-depth="2.2"></i>
-          <i class="chip c-ivory" style="--x:88%;--y:76%;--s:52px" data-depth="1.5"></i>
-          <i class="chip c-red" style="--x:94%;--y:52%;--s:44px" data-depth="3"></i>
-          <i class="chip c-navy" style="--x:2%;--y:88%;--s:64px" data-depth="2.4"></i>
-        </div>
-
-        <div class="cards wrap" id="cards"></div>
-
-        <div class="spotlight" aria-hidden="true"></div>
-        <div class="fullhouse" aria-live="polite"><span>Full house</span></div>
-      </div>
-    </section>
-
-    <!-- 03 HOUSE RULES -->
-    <section class="rules" id="rules">
+    <!-- 01 HOUSE RULES -->
+    <section class="rules" id="rules" data-chapter="01" data-name="House rules">
       <div class="wrap rules-grid">
         <div class="rules-left">
-          <p class="eyebrow">03 — The dealer</p>
+          <p class="label">01 — The dealer</p>
           <h2 class="section-title" data-speed="-0.08"><span data-skew>HOUSE</span><br /><span class="stroke" data-skew>RULES</span></h2>
-          <div class="neon-sign" aria-label="Open to work"><span class="flick">OPEN</span> TO WORK</div>
+          <p class="status"><span class="pulse"></span>Open to work</p>
           <p class="about">I'm Om Kashyap. <span class="muted">[Placeholder: who you are, what you build, where you're based, and what you want next. Two or three lines, max.]</span></p>
-          <dl class="stats">
-            <div><dt>Hands played</dt><dd>00</dd></div>
-            <div><dt>Languages</dt><dd>00</dd></div>
-            <div><dt>House edge</dt><dd>100%</dd></div>
-          </dl>
         </div>
-
-        <ol class="plaque">
+        <ol class="rule-list">
           <li><span class="num">01</span><div><h3>Ship it.</h3><p>Placeholder rule. How you work, in one line.</p></div></li>
           <li><span class="num">02</span><div><h3>Design isn't decoration.</h3><p>Placeholder rule. What you care about.</p></div></li>
           <li><span class="num">03</span><div><h3>Read the table.</h3><p>Placeholder rule. How you think about users.</p></div></li>
@@ -126,38 +116,91 @@
           <li><span class="num">05</span><div><h3>The house always ships.</h3><p>Placeholder rule. Your closing line.</p></div></li>
         </ol>
       </div>
+
+      <div class="wrap composition">
+        <p class="label">Composition</p>
+        <div class="specimens">
+          <figure class="specimen">
+            <canvas class="mol" data-mol="c60" aria-hidden="true"></canvas>
+            <figcaption>
+              <p class="spec-formula">C<sub>60</sub></p>
+              <p class="spec-name">Buckminsterfullerene</p>
+              <p class="spec-note">Sixty carbon atoms, ninety bonds. Built to hold its shape.</p>
+              <dl class="spec-data"><div><dt>Atoms</dt><dd>60</dd></div><div><dt>Bonds</dt><dd>90</dd></div><div><dt>Role</dt><dd>Structure</dd></div></dl>
+            </figcaption>
+          </figure>
+          <figure class="specimen">
+            <canvas class="mol" data-mol="atp" aria-hidden="true"></canvas>
+            <figcaption>
+              <p class="spec-formula">C<sub>10</sub>H<sub>16</sub>N<sub>5</sub>O<sub>13</sub>P<sub>3</sub></p>
+              <p class="spec-name">Adenosine triphosphate</p>
+              <p class="spec-note">The cell's energy currency. Spent constantly, remade constantly.</p>
+              <dl class="spec-data"><div><dt>Atoms</dt><dd>47</dd></div><div><dt>Phosphates</dt><dd>3</dd></div><div><dt>Role</dt><dd>Drive</dd></div></dl>
+            </figcaption>
+          </figure>
+        </div>
+      </div>
     </section>
 
+    <!-- 02 THE TABLE -->
+    <section class="table" id="table" data-chapter="02" data-name="The table">
+      <div class="table-stage" id="tableStage">
+        <div class="felt">
+          <svg class="felt-print" viewBox="0 0 1000 260" aria-hidden="true">
+            <defs><path id="feltArc" d="M 60 40 Q 500 300 940 40" /></defs>
+            <text><textPath href="#feltArc" startOffset="50%" text-anchor="middle">THE HOUSE ALWAYS SHIPS · DEALER STANDS ON 17 · INSURANCE PAYS 2 TO 1</textPath></text>
+          </svg>
 
-    <!-- 04 CASH OUT -->
-    <section class="cashout" id="cashout">
-      <div class="wrap cash-grid">
+          <header class="section-head wrap">
+            <p class="label">02 — The table</p>
+            <h2 class="section-title"><span>THE</span> <span class="stroke">TABLE</span></h2>
+            <p class="hint" id="tableHint"><span class="pulse"></span><span class="hint-text">Move your light across the felt to deal the cards.</span></p>
+            <div class="table-actions">
+              <button class="btn btn-sm btn-primary" id="dealAll" type="button">Deal all</button>
+              <button class="btn btn-sm" id="reshuffle" type="button">Reshuffle</button>
+            </div>
+          </header>
+
+          <div class="discs" aria-hidden="true">
+            <i class="disc" style="--x:4%;--y:20%;--s:70px" data-depth="2.6"></i>
+            <i class="disc d-cyan" style="--x:7%;--y:64%;--s:52px" data-depth="1.8"></i>
+            <i class="disc" style="--x:91%;--y:32%;--s:60px" data-depth="2.2"></i>
+            <i class="disc d-cyan" style="--x:88%;--y:78%;--s:46px" data-depth="1.5"></i>
+          </div>
+
+          <div class="cards wrap" id="cards"></div>
+
+          <div class="spotlight" aria-hidden="true"></div>
+          <div class="fullhouse" aria-live="polite"><span>Full house</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 CASH OUT -->
+    <section class="cashout" id="cashout" data-chapter="03" data-name="Cash out">
+      <div class="cage" id="cage" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="wrap cash-grid" id="cashGrid">
         <div class="cash-copy">
-          <p class="eyebrow">04 — Cash out</p>
+          <p class="label">03 — Cash out</p>
           <h2 class="section-title" data-speed="-0.06"><span data-skew>CASH</span> <span class="stroke" data-skew>OUT</span></h2>
-          <p class="cash-sub">You've seen the hand. Take the chip for the full resume, or grab the receipt and get in touch.</p>
+          <p class="cash-sub">You've seen the hand. Take the disc for the full resume, or keep the receipt and get in touch.</p>
         </div>
 
-        <a class="big-chip" href="#" data-resume aria-label="Open resume">
-          <span class="big-chip-ring" aria-hidden="true"></span>
-          <span class="big-chip-face">
-            <b>RESUME</b>
-            <small>Cash out ↗</small>
-          </span>
+        <a class="idisc" href="#" data-resume aria-label="Open resume">
+          <span class="idisc-ring" aria-hidden="true"></span>
+          <span class="idisc-ring r2" aria-hidden="true"></span>
+          <span class="idisc-face"><b>Resume</b><small>Cash out ↗</small></span>
         </a>
 
-        <div class="receipt" id="receipt">
-          <p class="r-head">THE HOUSE<br /><small>Receipt #0001 · Table 01</small></p>
-          <div class="r-rule"></div>
-          <div class="r-row"><span>Player</span><i></i><span data-site="name">Om Kashyap</span></div>
-          <a class="r-row" data-link="github" href="#" target="_blank" rel="noopener"><span>GitHub</span><i></i><span data-site="githubHandle">@Ketchup-69</span></a>
-          <a class="r-row" data-link="email" href="#"><span>Email</span><i></i><span class="r-val">placeholder</span></a>
-          <a class="r-row" data-link="linkedin" href="#" target="_blank" rel="noopener"><span>LinkedIn</span><i></i><span class="r-val">placeholder</span></a>
-          <a class="r-row" href="#" data-resume><span>Resume</span><i></i><span>Open ↗</span></a>
-          <div class="r-rule"></div>
-          <div class="r-row r-total"><span>Total</span><i></i><span>ALL IN</span></div>
+        <div class="ledger" id="receipt">
+          <p class="l-head">The House <span>Receipt 0001</span></p>
+          <div class="l-row"><span>Player</span><i></i><span data-site="name">Om Kashyap</span></div>
+          <a class="l-row" data-link="linkedin" href="#" target="_blank" rel="noopener"><span>LinkedIn</span><i></i><span data-site="linkedinHandle">in/vomkashyap</span></a>
+          <a class="l-row" data-link="github" href="#" target="_blank" rel="noopener"><span>GitHub</span><i></i><span data-site="githubHandle">@Ketchup-69</span></a>
+          <a class="l-row" data-link="email" href="#"><span>Email</span><i></i><span class="r-val">—</span></a>
+          <a class="l-row" href="#" data-resume><span>Resume</span><i></i><span>PDF ↗</span></a>
+          <div class="l-row l-total"><span>Total</span><i></i><span>All in</span></div>
           <div class="barcode" aria-hidden="true"></div>
-          <p class="r-foot">Thank you, come again</p>
         </div>
       </div>
     </section>

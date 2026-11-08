@@ -1,6 +1,6 @@
 # THE HOUSE — Om Kashyap
 
-A pixel-art casino floating in orbit. This is my portfolio.
+An arcade on earth, a flight through the clouds, and a casino on the grid. This is my portfolio.
 
 Plain HTML/CSS/JS with no build step and no dependencies.
 
@@ -8,7 +8,10 @@ Plain HTML/CSS/JS with no build step and no dependencies.
 Everything lives in **`data.js`**:
 - `SITE.resumeUrl`: your resume link (the chip buttons + receipt)
 - `SITE.email`, `SITE.linkedin`: these stay hidden until you fill them in
+- `MUSIC`: the Apple Music widget (playlist link, embed link, track list)
 - `PROJECTS`: the cards on the table (4–6 recommended)
+
+The resume PDF lives in `assets/`.
 
 The About text and house rules are in `index.html`. Search for `Placeholder`.
 
@@ -24,5 +27,5 @@ Your site goes live at `https://ketchup-69.github.io/PerPortfolio/`.
 ## Files
 - `index.html`: structure
 - `styles.css`: design system and layout
-- `main.js`: pixel scene (canvas), parallax, spotlight table and synthesized sound
+- `main.js`: arcade loader + flight, grid world, table camera moves, cursor, music widget, molecules, interface sounds
 - `data.js`: your content
