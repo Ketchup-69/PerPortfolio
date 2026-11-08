@@ -119,74 +119,76 @@
 
     </section>
 
-    <!-- 02 THE TABLE -->
-    <section class="table" id="table" data-chapter="02" data-name="The table">
-      <div class="cine" id="approach" aria-hidden="true">
-        <div class="cine-stage">
-          <div class="cine-cap"><span class="label">02 — The table</span><b>Pull up a chair</b></div>
-        </div>
-      </div>
-      <div class="table-stage" id="tableStage">
-        <div class="felt">
-          <svg class="felt-print" viewBox="0 0 1000 260" aria-hidden="true">
-            <defs><path id="feltArc" d="M 60 40 Q 500 300 940 40" /></defs>
-            <text><textPath href="#feltArc" startOffset="50%" text-anchor="middle">THE HOUSE ALWAYS SHIPS · DEALER STANDS ON 17 · INSURANCE PAYS 2 TO 1</textPath></text>
-          </svg>
+    <!-- 02 + 03 THE FLOOR: one continuous camera — walk in, sit at the table (the table IS the page),
+         stand, walk the slot corridor, cash out at the cage, through the vault -->
+    <section class="floor" id="floor">
+      <span class="anchor" id="table" data-chapter="02" data-name="The table"></span>
+      <span class="anchor" id="cashout" data-chapter="03" data-name="Cash out"></span>
+      <div class="floor-stage" id="floorStage">
+        <div class="world" id="world"></div>
 
-          <header class="section-head wrap">
-            <p class="label">02 — The table</p>
-            <h2 class="section-title"><span>THE</span> <span class="stroke">TABLE</span></h2>
-            <p class="hint" id="tableHint"><span class="pulse"></span><span class="hint-text">Move your light across the felt to deal the cards.</span></p>
-            <div class="table-actions">
-              <button class="btn btn-sm btn-primary" id="dealAll" type="button">Deal all</button>
-              <button class="btn btn-sm" id="reshuffle" type="button">Reshuffle</button>
+        <!-- THE TABLE (a real page, laid on a 3D table) -->
+        <div class="plane table-plane" id="tablePlane">
+          <div class="felt">
+            <svg class="felt-print" viewBox="0 0 1000 260" aria-hidden="true">
+              <defs><path id="feltArc" d="M 60 40 Q 500 300 940 40" /></defs>
+              <text><textPath href="#feltArc" startOffset="50%" text-anchor="middle">THE HOUSE ALWAYS SHIPS · DEALER STANDS ON 17 · INSURANCE PAYS 2 TO 1</textPath></text>
+            </svg>
+            <header class="section-head">
+              <p class="label">02 — The table</p>
+              <h2 class="section-title"><span>THE</span> <span class="stroke">TABLE</span></h2>
+              <div class="head-row">
+                <p class="hint" id="tableHint"><span class="pulse"></span><span class="hint-text">Move your light across the felt to deal the cards.</span></p>
+                <div class="table-actions">
+                  <button class="btn btn-sm btn-primary" id="dealAll" type="button">Deal all</button>
+                  <button class="btn btn-sm" id="reshuffle" type="button">Reshuffle</button>
+                </div>
+              </div>
+            </header>
+            <div class="chips" aria-hidden="true">
+              <canvas class="pchip-sm" width="16" height="16" data-chip="red" data-spin="0.5" style="--x:3%;--y:30%;--s:64px" data-depth="2.6"></canvas>
+              <canvas class="pchip-sm" width="14" height="14" data-chip="navy" data-spin="-0.4" style="--x:6%;--y:78%;--s:52px" data-depth="1.8"></canvas>
+              <canvas class="pchip-sm" width="16" height="16" data-chip="acc" data-spin="0.35" style="--x:92%;--y:24%;--s:60px" data-depth="2.2"></canvas>
+              <canvas class="pchip-sm" width="12" height="12" data-chip="cyan" data-spin="-0.6" style="--x:90%;--y:82%;--s:46px" data-depth="1.5"></canvas>
             </div>
-          </header>
-
-          <div class="chips" aria-hidden="true">
-            <canvas class="pchip-sm" width="16" height="16" data-chip="red" data-spin="0.5" style="--x:4%;--y:20%;--s:72px" data-depth="2.6"></canvas>
-            <canvas class="pchip-sm" width="14" height="14" data-chip="navy" data-spin="-0.4" style="--x:7%;--y:64%;--s:56px" data-depth="1.8"></canvas>
-            <canvas class="pchip-sm" width="16" height="16" data-chip="acc" data-spin="0.35" style="--x:91%;--y:32%;--s:64px" data-depth="2.2"></canvas>
-            <canvas class="pchip-sm" width="12" height="12" data-chip="cyan" data-spin="-0.6" style="--x:88%;--y:78%;--s:48px" data-depth="1.5"></canvas>
+            <div class="cards" id="cards"></div>
+            <div class="spotlight" aria-hidden="true"></div>
+            <div class="fullhouse" aria-live="polite"><span>Full house</span></div>
           </div>
-
-          <div class="cards wrap" id="cards"></div>
-
-          <div class="spotlight" aria-hidden="true"></div>
-          <div class="fullhouse" aria-live="polite"><span>Full house</span></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 03 CASH OUT -->
-    <section class="cashout" id="cashout" data-chapter="03" data-name="Cash out">
-      <div class="cine" id="depart" aria-hidden="true">
-        <div class="cine-stage">
-          <div class="cine-cap"><span class="label">03 — Cash out</span><b>Chips in hand</b></div>
-        </div>
-      </div>
-      <div class="wrap cash-grid" id="cashGrid">
-        <div class="cash-copy">
-          <p class="label">03 — Cash out</p>
-          <h2 class="section-title" data-speed="-0.06"><span data-skew>CASH</span> <span class="stroke" data-skew>OUT</span></h2>
-          <p class="cash-sub">You've seen the hand. Take the chip for the full resume, or keep the receipt and get in touch.</p>
         </div>
 
-        <a class="pchip" href="#" data-resume aria-label="Open resume">
-          <canvas width="40" height="40" data-chip="red" data-spin="0.5" aria-hidden="true"></canvas>
-          <span class="pchip-face"><b>Resume</b><small>Cash out ↗</small></span>
-        </a>
-
-        <div class="ledger" id="receipt">
-          <p class="l-head">The House <span>Receipt 0001</span></p>
-          <div class="l-row"><span>Player</span><i></i><span data-site="name">Om Kashyap</span></div>
-          <a class="l-row" data-link="linkedin" href="#" target="_blank" rel="noopener"><span>LinkedIn</span><i></i><span data-site="linkedinHandle">in/vomkashyap</span></a>
-          <a class="l-row" data-link="github" href="#" target="_blank" rel="noopener"><span>GitHub</span><i></i><span data-site="githubHandle">@Ketchup-69</span></a>
-          <a class="l-row" data-link="email" href="#"><span>Email</span><i></i><span class="r-val">—</span></a>
-          <a class="l-row" href="#" data-resume><span>Resume</span><i></i><span>PDF ↗</span></a>
-          <div class="l-row l-total"><span>Total</span><i></i><span>All in</span></div>
-          <div class="barcode" aria-hidden="true"></div>
+        <!-- THE CASH-OUT (revealed inside the vault) -->
+        <div class="plane cash-plane" id="cashPlane">
+          <div class="vault-room" aria-hidden="true"></div>
+          <div class="wrap cash-grid" id="cashGrid">
+            <div class="cash-copy">
+              <p class="label">03 — Cash out</p>
+              <h2 class="section-title"><span>CASH</span> <span class="stroke">OUT</span></h2>
+              <p class="cash-sub">You've seen the hand. Take the chip for the full resume, or keep the receipt and get in touch.</p>
+            </div>
+            <a class="pchip" href="#" data-resume aria-label="Open resume">
+              <canvas width="40" height="40" data-chip="red" data-spin="0.5" aria-hidden="true"></canvas>
+              <span class="pchip-face"><b>Resume</b><small>Cash out ↗</small></span>
+            </a>
+            <div class="printer">
+              <div class="printer-slot" aria-hidden="true"></div>
+              <div class="ledger" id="receipt">
+                <p class="l-head">The House <span>Receipt 0001</span></p>
+                <div class="l-row"><span>Player</span><i></i><span data-site="name">Om Kashyap</span></div>
+                <a class="l-row" data-link="linkedin" href="#" target="_blank" rel="noopener"><span>LinkedIn</span><i></i><span data-site="linkedinHandle">in/vomkashyap</span></a>
+                <a class="l-row" data-link="github" href="#" target="_blank" rel="noopener"><span>GitHub</span><i></i><span data-site="githubHandle">@Ketchup-69</span></a>
+                <a class="l-row" data-link="email" href="#"><span>Email</span><i></i><span class="r-val">—</span></a>
+                <a class="l-row" href="#" data-resume><span>Resume</span><i></i><span>PDF ↗</span></a>
+                <div class="l-row l-total"><span>Payout</span><i></i><span id="payoutTotal">All in</span></div>
+                <div class="barcode" aria-hidden="true"></div>
+              </div>
+            </div>
+          </div>
         </div>
+
+        <canvas class="fx" id="fx" aria-hidden="true"></canvas>
+        <div class="flash" id="flash" aria-hidden="true"></div>
+        <div class="cine-cap" id="cap"><span class="label" id="capLabel">02 — The table</span><b id="capText">Pull up a chair</b></div>
       </div>
     </section>
   </main>

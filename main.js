@@ -60,8 +60,9 @@
     el.tabIndex = 0;
     el.dataset.suit = p.suit;
     el.setAttribute("aria-label", `Project ${n}: ${p.title}`);
-    el.style.setProperty("--rot", `${ROT[i % ROT.length]}deg`);
-    el.style.setProperty("--off", `${OFF[i % OFF.length]}px`);
+    const mid = (PROJECTS.length - 1) / 2;
+    el.style.setProperty("--fan", `${((i - mid) * 3.4).toFixed(1)}deg`);
+    el.style.setProperty("--off", `${(Math.abs(i - mid) ** 2 * 7).toFixed(0)}px`);
     el.innerHTML = `
       <div class="card-tilt"><div class="card-inner">
         <div class="card-face card-back"><div class="back-emblem">${HEX}<span>OK</span></div><p class="back-no">No. ${n}</p></div>
@@ -1098,143 +1099,6 @@
   }
 
   /* ----------------------------------------------------------
-     CINEMATICS — scroll-locked camera moves.
-     Approach: walk across the floor, reach the table, sit, look
-     down until the felt fills the view.
-     Depart: stand up, turn, walk to the cashier, push through
-     the window into the cash-out.
-     ---------------------------------------------------------- */
-  const Cine = (() => {
-    const roots = $$(".cine");
-    if (reduceMotion || !roots.length) { roots.forEach((r) => r.remove()); return null; }
-    const LANT = ["...#####...", "..#######..", ".ooaaaaaoo.", "oooaayaaooo", "ooaayyyaaoo", "ooayyyyyaoo", "ooayyWyyaoo", "ooayyyyyaoo", "ooayyyyyaoo", "ooaayyyaaoo", "oooaayaaooo", "rooaaaaaoor", ".rrooooorr.", "..#######..", "...#####...", ".....r.....", ".....r....."];
-    const LMAP = { "#": "#2a0e10", o: "#a3300f", a: "#ff5a24", y: "#ff9a5e", W: "#ffe2d6", r: "#c61e2e" };
-    function lantern() {
-      const c = mk(11, 17), x = c.getContext("2d");
-      LANT.forEach((row, yy) => [...row].forEach((ch, xx) => { if (LMAP[ch]) { x.fillStyle = LMAP[ch]; x.fillRect(xx, yy, 1, 1); } }));
-      c.className = "cine-obj c-lantern";
-      return c;
-    }
-    function cage() {
-      // cashier booth, 120 x 90; the window is left transparent so we can pass through it
-      const w = 120, h = 90, c = mk(w, h), x = c.getContext("2d");
-      const F = (col, a, b, cw, ch) => { x.fillStyle = col; x.fillRect(a, b, cw, ch); };
-      F("#140a0e", 0, 0, w, h);
-      for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) if (bay(xx, yy) < 0.12) F("#20101a", xx, yy, 1, 1);
-      F("#ff5a24", 0, 0, w, 1); F("#3a0f0c", 0, 1, w, 1);
-      // sign
-      F("#05060b", 30, 6, 60, 14); F("#ff5a24", 30, 6, 60, 1); F("#ff5a24", 30, 19, 60, 1);
-      x.font = "8px Silkscreen, monospace"; x.textAlign = "center"; x.textBaseline = "middle";
-      x.fillStyle = "#5a1a0c"; x.fillText("CASHIER", 61, 14); x.fillStyle = "#ffe2d6"; x.fillText("CASHIER", 60, 13);
-      for (let i = 0; i < 14; i++) F(i % 2 ? "#fff3c4" : "#5a2416", 31 + i * 4.3, 4, 1, 1);
-      // window: frame + bars, glass left clear
-      const wx = 36, wy = 26, ww = 48, wh = 36;
-      F("#9aa3b5", wx - 3, wy - 3, ww + 6, wh + 6); F("#5a6275", wx - 2, wy - 2, ww + 4, wh + 4);
-      x.clearRect(wx, wy, ww, wh);
-      for (let i = 1; i < 8; i++) { F("#c9a24a", wx + i * 6, wy, 1, wh); F("#7a5e22", wx + i * 6 + 1, wy, 1, wh); }
-      F("#c9a24a", wx, wy + 10, ww, 1);
-      // counter ledge + lamp + side pillars
-      F("#3a1a14", wx - 10, wy + wh + 3, ww + 20, 5); F("#9aa3b5", wx - 10, wy + wh + 3, ww + 20, 1);
-      F("#0b0d14", wx - 8, wy + wh + 8, ww + 16, 2);
-      F("#2a0f12", 8, 24, 10, 66); F("#ff5a24", 8, 24, 1, 66); F("#2a0f12", w - 18, 24, 10, 66); F("#ff5a24", w - 9, 24, 1, 66);
-      F("#ffcc33", 22, 30, 3, 2); F("#c98a12", 23, 32, 1, 6);
-      // a stack of chips on the ledge
-      for (let i = 0; i < 4; i++) { F(i % 2 ? "#f2ece2" : "#c61e2e", 72, wy + wh + 1 - i * 2, 7, 2); }
-      c.className = "cine-obj c-cage";
-      c.win = { x: (wx + ww / 2) / w, y: (wy + wh / 2) / h, w: ww / w };
-      return c;
-    }
-    function table(big) {
-      const d = document.createElement("div");
-      d.className = "cine-obj ptable" + (big ? " is-big" : "");
-      let inner = "";
-      if (big) {
-        const cards = [[34, 46, -9], [42, 44, 4], [50, 47, -3], [58, 45, 7], [66, 46, -6]].map(([cx, cy, r]) => `<i class="pt-card" style="--x:${cx}%;--y:${cy}%;--r:${r}deg"></i>`).join("");
-        inner = `<span class="pt-print">THE HOUSE ALWAYS SHIPS</span>${cards}<canvas class="pt-chip" width="16" height="16" style="--x:22%;--y:60%"></canvas><canvas class="pt-chip" width="16" height="16" style="--x:76%;--y:36%"></canvas><canvas class="pt-chip" width="16" height="16" style="--x:72%;--y:64%"></canvas>`;
-      }
-      d.innerHTML = `<div class="pt-felt">${inner}</div>`;
-      $$(".pt-chip", d).forEach((c, i) => drawChip(c, i * 0.7, ["red", "acc", "navy"][i % 3]));
-      return d;
-    }
-    const GHOSTS = [{ x: -1.15, z: -1900 }, { x: 1.2, z: -2900 }, { x: -1.3, z: -4100 }, { x: 1.25, z: -5100 }];
-    const LANTS = [{ x: -0.32, y: -0.36, z: -700 }, { x: 0.3, y: -0.42, z: -1500 }, { x: -0.16, y: -0.34, z: -2300 }, { x: 0.38, y: -0.38, z: -3100 }, { x: -0.42, y: -0.4, z: -3900 }, { x: 0.1, y: -0.36, z: -4700 }];
-    function build(root, kind) {
-      const st = $(".cine-stage", root);
-      const o = { root, st, cap: $(".cine-cap", root), ghosts: [], lants: [] };
-      GHOSTS.forEach((g) => { const el = table(false); st.insertBefore(el, o.cap); o.ghosts.push({ el, ...g }); });
-      o.main = table(true); st.insertBefore(o.main, o.cap);
-      if (kind === "d") { o.cage = cage(); st.insertBefore(o.cage, o.cap); }
-      LANTS.forEach((l) => { const el = lantern(); st.insertBefore(el, o.cap); o.lants.push({ el, ...l }); });
-      return o;
-    }
-    const A = build($("#approach"), "a"), D = build($("#depart"), "d");
-    const T = (el, x, y, z, rx = 0, ry = 0, op = 1) => {
-      el.style.transform = `translate(-50%, -50%) translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, ${z.toFixed(1)}px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
-      el.style.opacity = op.toFixed(3);
-      el.style.visibility = op < 0.01 ? "hidden" : "visible";
-    };
-    const prog = (root) => { const r = root.getBoundingClientRect(), tot = r.height - innerHeight; return { p: clamp(-r.top / tot, 0, 1), on: r.top < innerHeight && r.bottom > 0 }; };
-    const seg = (p, a, b) => clamp((p - a) / (b - a), 0, 1);
-
-    function passers(o, walk, vw, vh, bob, lift, fade) {
-      for (const g of o.ghosts) {
-        const z = g.z + walk * 3600;
-        T(g.el, g.x * vw, 0.42 * vh + bob - lift * vh * 0.15, z, 80, 0, (z > 350 ? 0 : clamp((z + 5600) / 1200, 0, 1)) * (1 - fade));
-      }
-      for (const l of o.lants) {
-        const z = l.z + walk * 3600;
-        T(l.el, l.x * vw, l.y * vh + bob * 0.5 - lift * vh * 0.9, z, 0, 0, (z > 520 ? 0 : clamp((z + 5400) / 1200, 0, 1)) * (1 - fade));
-      }
-    }
-
-    return {
-      frame(now) {
-        const vw = innerWidth, vh = innerHeight;
-        let hzOverride = null;
-        // ---- approach: walk in, sit, look down
-        const a = prog(A.root);
-        if (a.on) {
-          const p = a.p;
-          const walk = easeInOut(seg(p, 0, 0.55)), sit = easeInOut(seg(p, 0.55, 0.75)), look = easeInOut(seg(p, 0.75, 0.96));
-          const bob = Math.sin(walk * Math.PI * 10) * 7 * (walk > 0 && walk < 1 ? 1 : 0);
-          let y = lerp(0.42 * vh, 0.56 * vh, walk), z = lerp(-3400, -700, walk), rx = lerp(82, 76, walk);
-          y = lerp(y, 0.2 * vh, sit); z = lerp(z, -260, sit); rx = lerp(rx, 50, sit);
-          y = lerp(y, 0, look); z = lerp(z, 0, look); rx = lerp(rx, 0, look);
-          T(A.main, 0, y + bob, z, rx);
-          passers(A, walk, vw, vh, bob, sit * 0.5 + look, look);
-          A.cap.style.opacity = (seg(p, 0.03, 0.12) * (1 - seg(p, 0.6, 0.72))).toFixed(3);
-          A.cap.dataset.step = p < 0.55 ? "walk" : p < 0.75 ? "sit" : "look";
-          hzOverride = lerp(lerp(0.6, 0.5, walk), -0.45, look);
-        }
-        // ---- depart: stand, turn, walk to the cashier, push through
-        const d = prog(D.root);
-        if (d.on) {
-          const p = d.p;
-          const stand = easeInOut(seg(p, 0, 0.22)), turn = easeInOut(seg(p, 0.2, 0.4)), walk = easeInOut(seg(p, 0.38, 0.84)), push = easeIn(seg(p, 0.84, 1));
-          const bob = Math.sin(walk * Math.PI * 10) * 7 * (walk > 0 && walk < 1 ? 1 : 0);
-          let y = lerp(0, 0.56 * vh, stand), z = lerp(0, -700, stand), rx = lerp(0, 76, stand), x = 0, ry = 0;
-          x = lerp(0, -1.25 * vw, turn) - walk * 0.5 * vw; z = lerp(z, -1100, turn) + walk * 1500; ry = lerp(0, 26, turn);
-          T(D.main, x, y + bob, z, rx, ry, z > 300 ? 0 : 1);
-          const cg = D.cage, cw = cg.offsetWidth || 1200;
-          const zEnd = 900 - 900 / Math.max(1.2, (vw * 1.15) / (cg.win.w * cw));
-          let cx = lerp(3.4 * vw, 0.3 * vw, turn), cz = -3800, cry = lerp(-42, -16, turn);
-          cx = lerp(cx, 0, walk); cz = lerp(cz, -560, walk); cry = lerp(cry, 0, walk);
-          cz = lerp(cz, zEnd, push);
-          const winOff = (0.5 - cg.win.y) * cg.offsetHeight;
-          T(cg, cx, winOff * (0.4 + push * 0.6) + bob * (1 - push), cz, 0, cry, seg(p, 0.2, 0.3) * (1 - seg(p, 0.97, 1)));
-          // the walk: tables and lanterns pass on the way to the cage
-          for (const g of D.ghosts) { const gz = g.z + 1400 + walk * 3600; T(g.el, g.x * vw - turn * 0.4 * vw, 0.42 * vh + bob, gz, 80, 0, (gz > 350 ? 0 : clamp((gz + 5600) / 1200, 0, 1)) * turn); }
-          for (const l of D.lants) { const lz = l.z + 900 + walk * 3600; T(l.el, l.x * vw - turn * 0.3 * vw, l.y * vh + bob * 0.5 - (1 - stand) * vh * 0.8, lz, 0, 0, (lz > 520 ? 0 : clamp((lz + 5400) / 1200, 0, 1)) * stand); }
-          D.cap.style.opacity = (seg(p, 0.42, 0.52) * (1 - seg(p, 0.76, 0.84))).toFixed(3);
-          D.cap.dataset.step = "walk";
-          hzOverride = lerp(-0.45, 0.56, stand);
-        }
-        Scene.override(hzOverride);
-      },
-    };
-  })();
-
-  /* ----------------------------------------------------------
      DOM PARALLAX
      ---------------------------------------------------------- */
   const para = $$("[data-speed]").map((el) => ({ el, speed: parseFloat(el.dataset.speed) || 0, top: 0, h: 0 }));
@@ -1256,8 +1120,7 @@
   /* ----------------------------------------------------------
      TABLE — sit down, deal, stand up
      ---------------------------------------------------------- */
-  const stage = $("#tableStage");
-  const table = $("#table .felt");
+  const table = $("#tablePlane .felt");
   const spot = $(".spotlight");
   const fullhouse = $(".fullhouse");
   const cards = $$(".card", cardsEl);
@@ -1301,18 +1164,14 @@
       c.addEventListener("pointerleave", () => { c.style.setProperty("--ry", "0deg"); c.style.setProperty("--rx", "0deg"); });
     }
   });
-  if (!useSpot) {
-    if (reduceMotion) cards.forEach((c) => deal(c, true));
-    else {
-      $("#tableHint .hint-text").textContent = "Scroll to deal the cards.";
-      const io = new IntersectionObserver((entries) => entries.forEach((en) => { if (en.isIntersecting) { setTimeout(() => deal(en.target), 120); io.unobserve(en.target); } }), { threshold: 0.6 });
-      cards.forEach((c) => io.observe(c));
-    }
-  }
+  if (reduceMotion) cards.forEach((c) => deal(c, true));
+  else if (!useSpot) { const h = $("#tableHint .hint-text"); if (h) h.textContent = "Scroll to deal the cards."; }
 
-  function transitions() { if (Cine) Cine.frame(); }
+
+  function transitions(now) { Floor.frame(now); }
 
   function tableFrame(now) {
+    if (!Floor.holding) return;
     const r = table.getBoundingClientRect();
     if (r.bottom < 0 || r.top > innerHeight) return;
     const mx = state.smx - 0.5, my = state.smy - 0.5;
@@ -1352,12 +1211,315 @@
   }
 
   /* ----------------------------------------------------------
+     THE FLOOR — one continuous, scroll-driven camera.
+     walk → sit → (the table page) → stand → slot corridor →
+     cashier cage (shutter, payout, coins) → through the window →
+     vault door → the cash-out page.
+     ---------------------------------------------------------- */
+  const Floor = (() => {
+    const floor = $("#floor"), stageEl = $("#floorStage"), world = $("#world");
+    const tablePlane = $("#tablePlane"), cashPlane = $("#cashPlane");
+    const fx = $("#fx"), fg = fx.getContext("2d"), flash = $("#flash");
+    const cap = $("#cap"), capLabel = $("#capLabel"), capText = $("#capText");
+    const receipt = $("#receipt"), payoutTotal = $("#payoutTotal");
+    if (reduceMotion) { floor.classList.add("is-static"); return { frame() {}, holding: true, chapter: null }; }
+
+    const SEG = [["walk", 1.7], ["sit", 1.0], ["hold", 1.7], ["stand", 0.8], ["corridor", 2.2], ["cage", 1.3], ["push", 0.6], ["vault", 1.3], ["reveal", 1.0], ["end", 0.5]];
+    const START = {}; let TOTAL = 0;
+    for (const [k, len] of SEG) { START[k] = [TOTAL, len]; TOTAL += len; }
+    const seg = (s, k) => clamp((s - START[k][0]) / START[k][1], 0, 1);
+    const PERSP = 900;
+
+    // ---------- pixel sprites ----------
+    const sprite = (w, h, draw, cls) => { const c = mk(w, h), x = c.getContext("2d"); x.imageSmoothingEnabled = false; draw(x, w, h); c.className = cls; return c; };
+    const LANT = ["...#####...", "..#######..", ".ooaaaaaoo.", "oooaayaaooo", "ooaayyyaaoo", "ooayyyyyaoo", "ooayyWyyaoo", "ooayyyyyaoo", "ooayyyyyaoo", "ooaayyyaaoo", "oooaayaaooo", "rooaaaaaoor", ".rrooooorr.", "..#######..", "...#####...", ".....r.....", ".....r....."];
+    const LMAP = { "#": "#2a0e10", o: "#a3300f", a: "#ff5a24", y: "#ff9a5e", W: "#ffe2d6", r: "#c61e2e" };
+    const lantern = () => sprite(11, 17, (x) => LANT.forEach((row, yy) => [...row].forEach((ch, xx) => { if (LMAP[ch]) { x.fillStyle = LMAP[ch]; x.fillRect(xx, yy, 1, 1); } })), "wobj w-lantern");
+    const SYMC = ["#e8322a", "#ffcc33", "#8fe9ff", "#3fbf4f", "#ff5a24"];
+    function slotMachine(seed) {
+      const c = mk(40, 72); c.className = "wobj w-slot"; c.seed = seed;
+      c.draw = (t) => {
+        const x = c.getContext("2d"), F = (col, a, b, w, h) => { x.fillStyle = col; x.fillRect(a, b, w, h); };
+        x.clearRect(0, 0, 40, 72);
+        F("#1c0a0e", 2, 10, 36, 62); F("#9aa3b5", 1, 10, 1, 62); F("#9aa3b5", 38, 10, 1, 62);
+        F("#3a0f0c", 3, 2, 34, 9); F(seed % 2 ? "#ff5a24" : "#c61e2e", 3, 2, 34, 1);
+        for (let i = 0; i < 9; i++) F(((i + Math.floor(t * 8) + seed) % 3) ? "#5a2416" : "#fff3c4", 4 + i * 4, 4, 1, 1);
+        F("#9aa3b5", 6, 15, 28, 16); F("#f2ece2", 7, 16, 26, 14);
+        for (let r = 0; r < 3; r++) { const s = (seed * 3 + r + Math.floor(t * (seed % 3 === 0 ? 6 : 0.5))) % SYMC.length; F(SYMC[s], 9 + r * 8, 20, 6, 6); F("#9aa3b5", 15 + r * 8, 16, 1, 14); }
+        F("#e8322a", 7, 23, 26, 1);
+        F("#05060b", 7, 33, 26, 5); F(((Math.floor(t * 2) + seed) % 2) ? "#8fe9ff" : "#2f7fb0", 9, 35, 22, 1);
+        F("#2a1216", 4, 40, 32, 4); F("#9aa3b5", 4, 40, 32, 1);
+        F("#ff5a24", 9, 41, 3, 2); F("#8fe9ff", 18, 41, 3, 2); F("#ffcc33", 27, 41, 3, 2);
+        F("#2a0f12", 7, 47, 26, 12); F("#ff5a24", 7, 47, 26, 1);
+        F("#9aa3b5", 7, 63, 26, 1); F("#0b0d14", 8, 64, 24, 3);
+        F("#c9d1e0", 38, 18, 1, 12); F("#e8322a", 37, 16, 3, 3);
+      };
+      c.draw(0);
+      return c;
+    }
+    function cageWrap() {
+      const wrap = document.createElement("div");
+      wrap.className = "wobj w-cage";
+      const c = sprite(120, 90, (x, w, h) => {
+        const F = (col, a, b, cw, ch) => { x.fillStyle = col; x.fillRect(a, b, cw, ch); };
+        F("#140a0e", 0, 0, w, h);
+        for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) if (bay(xx, yy) < 0.12) F("#20101a", xx, yy, 1, 1);
+        F("#ff5a24", 0, 0, w, 1); F("#3a0f0c", 0, 1, w, 1);
+        F("#05060b", 30, 6, 60, 14); F("#ff5a24", 30, 6, 60, 1); F("#ff5a24", 30, 19, 60, 1);
+        x.font = "8px Silkscreen, monospace"; x.textAlign = "center"; x.textBaseline = "middle";
+        x.fillStyle = "#5a1a0c"; x.fillText("CASHIER", 61, 14); x.fillStyle = "#ffe2d6"; x.fillText("CASHIER", 60, 13);
+        const wx = 36, wy = 26, ww = 48, wh = 36;
+        F("#9aa3b5", wx - 3, wy - 3, ww + 6, wh + 6); F("#5a6275", wx - 2, wy - 2, ww + 4, wh + 4);
+        x.clearRect(wx, wy, ww, wh);
+        for (let i = 1; i < 8; i++) { F("#c9a24a", wx + i * 6, wy, 1, wh); F("#7a5e22", wx + i * 6 + 1, wy, 1, wh); }
+        F("#3a1a14", wx - 10, wy + wh + 3, ww + 20, 5); F("#9aa3b5", wx - 10, wy + wh + 3, ww + 20, 1);
+        F("#2a0f12", 8, 24, 10, 66); F("#ff5a24", 8, 24, 1, 66); F("#2a0f12", w - 18, 24, 10, 66); F("#ff5a24", w - 9, 24, 1, 66);
+        F("#05060b", 34, 72, 52, 10); F("#ff5a24", 34, 72, 52, 1);
+      }, "cage-art");
+      wrap.appendChild(c);
+      wrap.insertAdjacentHTML("beforeend", `<div class="cage-shutter"></div><div class="cage-bulbs"></div><div class="cage-led"><span>PAYOUT</span><b id="cageCount">000000</b></div>`);
+      return wrap;
+    }
+    function vaultWrap() {
+      const wrap = document.createElement("div");
+      wrap.className = "wobj w-vault";
+      wrap.innerHTML = `<div class="vault-light"></div>`;
+      const door = mk(96, 96); door.className = "vault-door";
+      door.draw = (ang) => {
+        const x = door.getContext("2d"), c0 = 47.5, R = 46;
+        x.clearRect(0, 0, 96, 96);
+        for (let yy = 0; yy < 96; yy++) for (let xx = 0; xx < 96; xx++) {
+          const d = Math.hypot(xx - c0, yy - c0);
+          if (d > R) continue;
+          let col = "#3a3f4d";
+          if (d > R - 2) col = "#9aa3b5"; else if (d > R - 5) col = "#1c2030";
+          else if (d > R - 7) col = "#6a7285";
+          else if (bay(xx, yy) < 0.18) col = "#2c3140";
+          const a = Math.atan2(yy - c0, xx - c0);
+          if (d > R - 5 && d < R - 2 && Math.floor(((a + 7) / 6.283) * 24) % 2 === 0) col = "#c9d1e0";
+          x.fillStyle = col; x.fillRect(xx, yy, 1, 1);
+        }
+        // the wheel
+        x.save(); x.translate(c0, c0); x.rotate(ang);
+        x.fillStyle = "#ff5a24";
+        for (let i = 0; i < 6; i++) { x.rotate(Math.PI / 3); x.fillRect(-1, 6, 2, 16); x.fillRect(-3, 21, 6, 3); }
+        x.restore();
+        for (let yy = -8; yy <= 8; yy++) for (let xx = -8; xx <= 8; xx++) { const d = Math.hypot(xx, yy); if (d < 8) { x.fillStyle = d > 6 ? "#ff5a24" : d > 3 ? "#1c2030" : "#ffe2d6"; x.fillRect(c0 + xx, c0 + yy, 1, 1); } }
+        x.fillStyle = "#9aa3b5"; x.fillRect(0, 30, 4, 10); x.fillRect(0, 56, 4, 10);
+      };
+      door.draw(0);
+      wrap.appendChild(door);
+      wrap.door = door;
+      return wrap;
+    }
+    function ghostTable() {
+      const d = document.createElement("div");
+      d.className = "wobj w-table";
+      d.innerHTML = `<div class="pt-felt"></div>`;
+      return d;
+    }
+
+    // ---------- build the world ----------
+    const objs = [];
+    const place = (el, x, y, z, ry = 0, rx = 0) => { world.appendChild(el); const o = { el, x, y, z, ry, rx }; objs.push(o); return o; };
+    let vw = innerWidth, vh = innerHeight;
+    const TZ = -2900;                 // where the table stands
+    const CW = 560;                   // corridor half-width
+    const CAGE_X = 7000, VAULT_X = 8400;
+    function build() {
+      world.innerHTML = ""; objs.length = 0;
+      vw = innerWidth; vh = innerHeight;
+      [[-1.15, -2000], [1.2, -3100], [-1.3, -4300], [1.3, -5300], [-1.2, -1200]].forEach(([gx, gz]) => place(ghostTable(), gx * vw, 0.42 * vh, gz, 0, 80));
+      [[-0.32, -0.36, -800], [0.3, -0.42, -1600], [-0.16, -0.34, -2400], [0.36, -0.38, -3300], [-0.42, -0.4, -4100]].forEach(([lx, ly, lz]) => place(lantern(), lx * vw, ly * vh, lz));
+      // the slot corridor, running along +x from the table
+      for (let i = 0; i < 8; i++) {
+        const x = 900 + i * 720;
+        place(slotMachine(i * 2), x, 0.06 * vh, TZ - CW, 0);
+        place(slotMachine(i * 2 + 1), x, 0.06 * vh, TZ + CW, 180);
+      }
+      for (let i = 0; i < 6; i++) place(lantern(), 1200 + i * 1000, -0.36 * vh, TZ + (i % 2 ? 160 : -160));
+      const sign = document.createElement("div");
+      sign.className = "wobj w-sign"; sign.innerHTML = "<span>Cashier</span><b>▸</b>";
+      place(sign, 3600, -0.3 * vh, TZ - 240, -90);
+      const sign2 = sign.cloneNode(true); place(sign2, 5600, -0.3 * vh, TZ + 260, -90);
+      cage = place(cageWrap(), CAGE_X, 0.02 * vh, TZ, -90);
+      vault = place(vaultWrap(), VAULT_X, 0, TZ, -90);
+      objs.forEach((o) => { o.el.style.transform = `translate(-50%, -50%) translate3d(${o.x}px, ${o.y}px, ${o.z}px) rotateY(${o.ry}deg) rotateX(${o.rx}deg)`; });
+      slots = objs.filter((o) => o.el.classList.contains("w-slot"));
+    }
+    let cage, vault, slots = [];
+
+    // chips you sweep off the table when you stand
+    const sweep = [0, 1, 2, 3, 4, 5].map((i) => { const c = mk(16, 16); c.className = "sweep-chip"; drawChip(c, i, ["red", "acc", "navy", "red", "cyan", "acc"][i]); stageEl.appendChild(c); return { c, sx: (i % 3 - 1) * 0.28 + (Math.random() - 0.5) * 0.08, sy: 0.18 + Math.floor(i / 3) * 0.16, d: 0.85 + Math.random() * 0.3 }; });
+
+    function size() {
+      vw = innerWidth; vh = innerHeight;
+      floor.style.height = `${(TOTAL + 1) * vh}px`;
+      $("#table").style.top = `${START.hold[0] * vh + vh * 0.25}px`;
+      $("#cashout").style.top = `${START.reveal[0] * vh + START.reveal[1] * vh}px`;
+      fx.width = Math.ceil(vw / 3); fx.height = Math.ceil(vh / 3);
+      build();
+    }
+    size();
+    let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(() => { size(); Scene.recompute(); }, 150); });
+
+    // ---------- coins (fx) ----------
+    const coins = [];
+    const burst = (n, x, y, spread = 1) => { for (let i = 0; i < n; i++) coins.push({ x, y, vx: (Math.random() - 0.5) * 220 * spread, vy: -80 - Math.random() * 200, life: 2.6, s: i }); };
+    const rain = (n) => { for (let i = 0; i < n; i++) coins.push({ x: Math.random() * fx.width, y: -5 - Math.random() * 40, vx: (Math.random() - 0.5) * 20, vy: 20 + Math.random() * 40, life: 4, s: i }); };
+    function drawFx(dt) {
+      fg.clearRect(0, 0, fx.width, fx.height);
+      for (let i = coins.length - 1; i >= 0; i--) {
+        const c = coins[i];
+        c.vy += 260 * dt; c.x += c.vx * dt; c.y += c.vy * dt; c.life -= dt;
+        if (c.life <= 0 || c.y > fx.height + 4) { coins.splice(i, 1); continue; }
+        const spin = Math.floor(c.y / 3 + c.s) % 4;
+        fg.fillStyle = spin === 0 ? "#fff3c4" : spin === 3 ? "#c98a12" : "#ffcc33";
+        fg.fillRect(Math.round(c.x), Math.round(c.y), spin === 1 ? 1 : 3, 3);
+      }
+    }
+
+    // ---------- helpers ----------
+    const setT = (el, x, y, z, rx = 0, ry = 0, s = 1) => { el.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, ${z.toFixed(1)}px) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) scale(${s.toFixed(4)})`; };
+    const show = (el, op) => { el.style.opacity = op.toFixed(3); el.style.visibility = op < 0.01 ? "hidden" : "visible"; };
+    let capKey = "";
+    const caption = (key, label, text, op) => {
+      if (key !== capKey) { capKey = key; capLabel.textContent = label; capText.textContent = text; }
+      cap.style.opacity = op.toFixed(3);
+    };
+    const once = new Set();
+    const fire = (k, fn) => { if (!once.has(k)) { once.add(k); fn(); } };
+    const reset = (k) => once.delete(k);
+
+    let last = performance.now(), slotTick = 0;
+    const api = { holding: false, chapter: null, frame };
+
+    function frame(now) {
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const r = floor.getBoundingClientRect();
+      const on = r.top < vh && r.bottom > 0;
+      api.chapter = null;
+      if (!on) { Scene.override(null); api.holding = false; return; }
+      const s = clamp(-r.top / vh, 0, TOTAL);
+      const walk = easeInOut(seg(s, "walk")), sitAll = seg(s, "sit"), sit = easeInOut(clamp(sitAll / 0.45, 0, 1)), look = easeInOut(clamp((sitAll - 0.45) / 0.55, 0, 1));
+      const hold = seg(s, "hold"), stand = easeInOut(seg(s, "stand"));
+      const corr = seg(s, "corridor"), turn = easeInOut(clamp(corr / 0.25, 0, 1)), stroll = easeInOut(clamp((corr - 0.2) / 0.8, 0, 1));
+      const cageP = seg(s, "cage"), push = easeIn(seg(s, "push")), vaultP = seg(s, "vault"), reveal = seg(s, "reveal");
+      const walking = (walk > 0 && walk < 1) || (stroll > 0 && stroll < 1);
+      const bobPhase = walk * 10 + stroll * 16 + seg(s, "vault") * 6;
+      const bob = Math.sin(bobPhase * Math.PI) * (walking ? 7 : 0);
+
+      // ---- camera through the world
+      let camX = 0, camY = 0, camZ = lerp(0, TZ + 300, walk), yaw = 0;
+      camY = lerp(0, 0.14 * vh, sit) * (1 - stand);              // sitting lowers the eye
+      yaw = 90 * turn;
+      camZ = lerp(camZ, TZ, turn);
+      camX = lerp(0, CAGE_X - 1250, stroll);
+      camX = lerp(camX, CAGE_X - 700, easeInOut(cageP));
+      camX = lerp(camX, CAGE_X + 80, push);                       // through the window
+      camX = lerp(camX, VAULT_X - 1250, easeInOut(clamp(vaultP / 0.5, 0, 1)));
+      camX = lerp(camX, VAULT_X - 300, easeIn(clamp((vaultP - 0.7) / 0.3, 0, 1)));
+      const shake = (cageP > 0.4 && cageP < 0.95 ? Math.sin(now * 0.07) * 2 : 0) + (vaultP > 0.55 && vaultP < 0.7 ? Math.sin(now * 0.11) * 5 : 0);
+      world.style.transform = `rotateY(${yaw.toFixed(2)}deg) translate3d(${(-camX + shake).toFixed(1)}px, ${(-camY - bob).toFixed(1)}px, ${(-(camZ) + PERSP).toFixed(1)}px)`;
+      // cull anything at or behind the eye
+      const sy = Math.sin((yaw * Math.PI) / 180), cy = Math.cos((yaw * Math.PI) / 180);
+      for (const o of objs) {
+        const zr = -(o.x - camX) * sy + (o.z - camZ) * cy;
+        const vis = zr < -90 && zr > -7000;
+        if (o.vis !== vis) { o.vis = vis; o.el.style.visibility = vis ? "visible" : "hidden"; }
+      }
+      // the walk-in set dissolves once you're seated; the corridor appears as you turn
+      world.style.opacity = (1 - look * (1 - stand)).toFixed(3);
+
+      // ---- the table page, laid on the table
+      api.holding = false;
+      if (s < START.stand[0] + START.stand[1] + START.corridor[1]) {
+        let y = lerp(0.44 * vh, 0.58 * vh, walk), z = lerp(-3300, -720, walk), rx = lerp(82, 76, walk), x = 0, ry = 0;
+        y = lerp(y, 0.2 * vh, sit); z = lerp(z, -260, sit); rx = lerp(rx, 50, sit);
+        y = lerp(y, 0, look); z = lerp(z, 0, look); rx = lerp(rx, 0, look);
+        // stand back up, then turn away from it
+        y = lerp(y, 0.58 * vh, stand); z = lerp(z, -720, stand); rx = lerp(rx, 76, stand);
+        x = lerp(0, -1.35 * vw, turn); z = lerp(z, -1150, turn); ry = lerp(0, 32, turn);
+        if (look >= 1 && stand <= 0) { tablePlane.style.transform = "none"; api.holding = true; }
+        else setT(tablePlane, x, y + bob, z, rx, ry);
+        show(tablePlane, 1 - clamp((turn - 0.55) / 0.45, 0, 1));
+      } else show(tablePlane, 0);
+
+      // scroll-deal while you sit at the table
+      if (hold > 0) cards.forEach((c, i) => { if (hold > 0.12 + i * 0.11) deal(c); });
+
+      // chips swept up into your hands
+      sweep.forEach((ch) => {
+        const p = clamp((stand - 0.05) / 0.7, 0, 1), e = easeIn(p);
+        if (p <= 0 || p >= 1) { show(ch.c, 0); return; }
+        show(ch.c, 1 - clamp((p - 0.8) / 0.2, 0, 1));
+        ch.c.style.transform = `translate(-50%, -50%) translate3d(${(ch.sx * vw * (1 + e * 1.6)).toFixed(1)}px, ${(ch.sy * vh * (1 - e * 2.4)).toFixed(1)}px, ${(lerp(-500, 760, e) * ch.d).toFixed(1)}px) rotateX(${(e * 540).toFixed(0)}deg)`;
+      });
+      if (stand > 0.2) fire("sweep", () => Sound.chip(5)); else if (stand <= 0) reset("sweep");
+
+      // slot machines blink as you pass
+      slotTick += dt;
+      if (corr > 0 && slotTick > 0.12) { slotTick = 0; for (const o of slots) if (o.vis) o.el.draw(now / 1000); }
+
+      // ---- the cage: shutter rolls up, payout counts, coins fly
+      if (cage) {
+        cage.el.style.setProperty("--shutter", (1 - easeInOut(clamp(cageP / 0.35, 0, 1))).toFixed(3));
+        const count = Math.round(easeOut(clamp((cageP - 0.3) / 0.55, 0, 1)) * 777777);
+        const ce = $("#cageCount"); if (ce) ce.textContent = String(count).padStart(6, "0");
+        cage.el.classList.toggle("is-jackpot", cageP > 0.85);
+        if (cageP > 0.32) fire("shutter", () => Sound.lever()); else if (cageP <= 0) reset("shutter");
+        if (cageP > 0.45 && cageP < 0.98 && Math.random() < 0.35) { burst(3, fx.width / 2 + (Math.random() - 0.5) * fx.width * 0.15, fx.height * 0.42, 1.4); if (Math.random() < 0.3) Sound.tick(); }
+        if (cageP > 0.85) fire("payout", () => { Sound.jackpot(); burst(60, fx.width / 2, fx.height * 0.42, 2.2); }); else if (cageP <= 0.8) reset("payout");
+      }
+      // ---- the vault: wheel spins, door swings, light floods
+      if (vault) {
+        const spin = easeInOut(clamp((vaultP - 0.3) / 0.3, 0, 1)), open = easeInOut(clamp((vaultP - 0.58) / 0.42, 0, 1));
+        if (vaultP > 0) vault.el.door.draw(spin * Math.PI * 3);
+        vault.el.door.style.transform = `rotateY(${(-108 * open).toFixed(2)}deg)`;
+        vault.el.style.setProperty("--light", open.toFixed(3));
+        if (vaultP > 0.32) fire("wheel", () => Sound.spin()); else if (vaultP <= 0.25) reset("wheel");
+        if (vaultP > 0.6) fire("door", () => { Sound.lever(); Sound.land(); }); else if (vaultP <= 0.55) reset("door");
+      }
+      flash.style.opacity = (clamp((vaultP - 0.85) / 0.15, 0, 1) * (1 - clamp(reveal / 0.35, 0, 1)) + push * (1 - clamp(seg(s, "vault") / 0.15, 0, 1)) * 0.6).toFixed(3);
+
+      // ---- the cash-out page assembles inside the vault
+      if (reveal > 0) {
+        const e = easeOut(clamp(reveal / 0.55, 0, 1));
+        if (e >= 1) cashPlane.style.transform = "none";
+        else setT(cashPlane, 0, (1 - e) * 0.1 * vh, lerp(-1400, 0, e), lerp(8, 0, e));
+        show(cashPlane, clamp(reveal / 0.25, 0, 1));
+        receipt.style.setProperty("--print", easeInOut(clamp((reveal - 0.35) / 0.55, 0, 1)).toFixed(3));
+        payoutTotal.textContent = reveal > 0.85 ? "All in" : String(Math.round(reveal * 777777)).padStart(6, "0");
+        if (reveal > 0.15) fire("rain", () => rain(120)); else if (reveal <= 0.05) reset("rain");
+        if (reveal > 0.3 && Math.random() < 0.25) rain(2);
+        world.style.opacity = (1 - clamp(reveal / 0.3, 0, 1)).toFixed(3);
+      } else show(cashPlane, 0);
+      if (reveal >= 1) world.style.opacity = "0";
+      drawFx(dt);
+
+      // ---- captions
+      if (walk > 0.02 && walk < 0.95) caption("walk", "02 — The table", "Pull up a chair", seg(s, "walk") < 0.12 ? seg(s, "walk") / 0.12 : 1 - clamp((seg(s, "walk") - 0.8) / 0.2, 0, 1));
+      else if (stand > 0.05 && turn < 0.6) caption("stand", "03 — Cash out", "Chips in hand", Math.min(clamp(stand / 0.3, 0, 1), 1 - clamp((turn - 0.3) / 0.3, 0, 1)));
+      else if (stroll > 0.05 && stroll < 0.95) caption("corr", "03 — Cash out", "This way to the cashier", Math.min(clamp(stroll / 0.15, 0, 1), 1 - clamp((stroll - 0.8) / 0.15, 0, 1)));
+      else if (cageP > 0.1 && cageP < 0.95) caption("cage", "03 — Cash out", "Counting your chips", Math.min(clamp((cageP - 0.1) / 0.15, 0, 1), 1 - clamp((cageP - 0.8) / 0.15, 0, 1)));
+      else if (vaultP > 0.15 && vaultP < 0.8) caption("vault", "03 — Cash out", "Opening the vault", Math.min(clamp((vaultP - 0.15) / 0.15, 0, 1), 1 - clamp((vaultP - 0.65) / 0.15, 0, 1)));
+      else cap.style.opacity = "0";
+
+      // ---- the space behind: tip down as you sit, back up as you stand
+      Scene.override(lerp(lerp(lerp(0.6, 0.5, walk), -0.45, look), 0.52, stand));
+      api.chapter = s < START.stand[0] + START.stand[1] * 0.5 ? ["02", "The table"] : ["03", "Cash out"];
+    }
+    return api;
+  })();
+
+  /* ----------------------------------------------------------
      CHAPTER HUD
      ---------------------------------------------------------- */
-  const chapters = $$("[data-chapter]");
+  const chapters = $$("section[data-chapter]");
   const chNum = $("#chapterNum"), chName = $("#chapterName");
   let curCh = "";
   function chapterFrame() {
+    if (typeof Floor !== "undefined" && Floor.chapter) { const [n, nm] = Floor.chapter; if (curCh !== n) { curCh = n; chNum.textContent = n; chName.textContent = nm; } return; }
     const mid = innerHeight * 0.5;
     for (const s of chapters) {
       const r = s.getBoundingClientRect();
@@ -1390,7 +1552,7 @@
     }
     const sk = clamp(state.vel * 0.05, -2.5, 2.5);
     for (const el of skewEls) el.style.transform = `skewY(${sk.toFixed(2)}deg)`;
-    transitions();
+    transitions(now);
     tableFrame(now);
     chapterFrame();
     Cursor && Cursor.frame(now);
