@@ -106,7 +106,7 @@
       Object.assign(toastEl.style, {
         position: "fixed", left: "50%", bottom: "28px", transform: "translateX(-50%)", zIndex: 200,
         fontFamily: "var(--pixel)", fontSize: "0.72rem", letterSpacing: "0.1em", textTransform: "uppercase",
-        padding: "12px 16px", background: "var(--ivory)", color: "var(--void)", boxShadow: "4px 4px 0 var(--gold)",
+        padding: "12px 16px", background: "var(--ivory)", color: "var(--void)", boxShadow: "4px 4px 0 var(--accent)",
         transition: "opacity .3s", opacity: 0, pointerEvents: "none",
       });
       document.body.appendChild(toastEl);
@@ -281,7 +281,7 @@
 
   /* ----------------------------------------------------------
      LOADER — a dithered octahedron (the diamond, in three dimensions)
-     rendered in 1-bit ordered dither, with a single gold ball on a
+     rendered in 1-bit ordered dither, with a single ember ball on a
      roulette orbit. Exits through a Bayer dissolve.
      ---------------------------------------------------------- */
   const Gate = (() => {
@@ -312,7 +312,7 @@
     })();
     const bay = (x, y) => B8[((y & 7) << 3) | (x & 7)];
 
-    const IV = [242, 233, 216], GD = [255, 194, 74], GH = [255, 236, 190], VD = [5, 7, 15], DIM = [30, 58, 120];
+    const IV = [242, 233, 216], GD = [217, 70, 28], GH = [255, 205, 180], VD = [5, 7, 15], DIM = [30, 58, 120];
     const N = [];
     for (const a of [-1, 1]) for (const b of [-1, 1]) for (const c of [-1, 1]) N.push([a, b, c]);
     const L = (() => { const v = [-0.45, -0.65, -0.62]; const m = Math.hypot(...v); return v.map((k) => k / m); })();
@@ -502,7 +502,7 @@
     const P = {
       void: hex("#05070F"), deep: hex("#070B1A"), navy: hex("#0A1633"), navy2: hex("#13244F"), navy3: hex("#1E3A78"),
       blue: hex("#3D7BFF"), ice: hex("#9CC4FF"), white: hex("#E8F0FF"), ember: hex("#FF4E1A"), amber: hex("#FFB23E"),
-      red: hex("#C61E2E"), gold: hex("#FFC24A"), goldDeep: hex("#B9780F"), goldHot: hex("#FFECBE"), ivory: hex("#F2E9D8"), land1: hex("#3A2C24"), land2: hex("#7A5C3E"), land3: hex("#B08A5C"), teal: hex("#1F5A5A"),
+      red: hex("#C61E2E"), accent: hex("#D9461C"), accentDeep: hex("#8A2A0E"), accentHot: hex("#FFD9C6"), accentSoft: hex("#FF9670"), ivory: hex("#F2E9D8"), land1: hex("#3A2C24"), land2: hex("#7A5C3E"), land3: hex("#B08A5C"), teal: hex("#1F5A5A"),
     };
     const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
     const bayer = (x, y) => BAYER[((y & 3) << 2) | (x & 3)];
@@ -561,7 +561,7 @@
         const r = rnd();
         stars.push({
           x: Math.floor(rnd() * w), y: Math.floor(rnd() * h),
-          c: r < 0.1 ? P.gold : r < 0.55 ? P.ice : P.white,
+          c: r < 0.1 ? P.accentSoft : r < 0.55 ? P.ice : P.white,
           ph: rnd() * Math.PI * 2, sp: 0.4 + rnd() * 1.2,
           big: rnd() < 0.035,
         });
@@ -638,9 +638,9 @@
         ".....r.....",
         ".....r.....",
       ];
-      const map = { "#": hex("#2A0E10"), o: P.goldDeep, a: P.gold, y: hex("#FFE29A"), W: P.goldHot, r: P.red };
+      const map = { "#": hex("#2A0E10"), o: P.accentDeep, a: P.accent, y: hex("#FF9A5E"), W: P.accentHot, r: P.red };
       lanternSpr = paint(11, art.length, (x, y) => { const ch = art[y][x]; return ch === "." ? null : map[ch]; });
-      lanternGlow = buildFlare(P.gold, P.goldDeep, 30);
+      lanternGlow = buildFlare(P.accent, P.accentDeep, 30);
     }
 
     function makeColumn(cw, th, shades, neon, g) {
@@ -675,9 +675,9 @@
       const mid = [hex("#050811"), hex("#0C1226"), hex("#18213F"), hex("#283862")];
       const far = [hex("#0A1029"), hex("#111B42"), hex("#1A2A5E"), hex("#25397A")];
       const defs = [
-        { f: 0.5, w: 0.026, th: 30, shades: far, neon: mix(P.gold, P.navy2, 0.6), g: 2, xs: [0.1, 0.36, 0.64, 0.9] },
+        { f: 0.5, w: 0.026, th: 30, shades: far, neon: mix(P.accent, P.navy2, 0.6), g: 2, xs: [0.1, 0.36, 0.64, 0.9] },
         { f: 1.0, w: 0.065, th: 54, shades: mid, neon: mix(P.blue, P.navy2, 0.25), g: 4, xs: [0.2, 0.8] },
-        { f: 1.9, w: 0.16, th: 84, shades: near, neon: P.gold, g: 8, xs: [-0.08, 0.92] },
+        { f: 1.9, w: 0.16, th: 84, shades: near, neon: P.accent, g: 8, xs: [-0.08, 0.92] },
       ];
       if (innerWidth < 700) { defs[0].xs = [0.18, 0.82]; defs[1].xs = []; defs[2].w = 0.12; }
       cols = defs.map((d) => {
@@ -706,7 +706,7 @@
       ctx.imageSmoothingEnabled = false;
       buildBackdrop();
       buildEarth();
-      flareWarm = buildFlare(P.gold, P.goldDeep, Math.round(Math.min(W, H) * 0.12));
+      flareWarm = buildFlare(P.accent, P.accentDeep, Math.round(Math.min(W, H) * 0.12));
       flareCool = buildFlare(P.ice, P.blue, Math.round(Math.min(W, H) * 0.06));
       buildLanterns();
       buildColumns();
@@ -749,7 +749,7 @@
       const fwx = Math.round(W * 0.13 + bx + backdrop.pad), fwy = Math.round(H * 0.15 + by);
       if (fwy + flareWarm.height > 0) {
         ctx.drawImage(flareWarm, fwx - (flareWarm.width >> 1), fwy - (flareWarm.height >> 1));
-        rays(fwx, fwy, Math.round(flareWarm.width * 0.62 + Math.sin(t * 1.3) * 3), P.gold);
+        rays(fwx, fwy, Math.round(flareWarm.width * 0.62 + Math.sin(t * 1.3) * 3), P.accent);
       }
       const fcx = Math.round(W * 0.76 + bx + backdrop.pad), fcy = Math.round(H * 0.17 + by);
       if (fcy + flareCool.height > 0) {
@@ -817,6 +817,7 @@
   const para = $$("[data-speed]").map((el) => ({ el, speed: parseFloat(el.dataset.speed) || 0, top: 0, h: 0 }));
   const mouseEls = $$("[data-mouse]").map((el) => ({ el, d: parseFloat(el.dataset.mouse) || 0 }));
   const skewEls = $$("[data-skew]");
+  const heroW1 = $(".hero-name .w1"), heroW2 = $(".hero-name .w2");
   function measure() {
     para.forEach((p) => {
       p.el.style.transform = "";
@@ -965,6 +966,10 @@
     }
     const mx = state.smx - 0.5, my = state.smy - 0.5;
     for (const m of mouseEls) m.el.style.transform = `translate3d(${(-mx * m.d).toFixed(1)}px, ${(-my * m.d * 0.5).toFixed(1)}px, 0)`;
+    if (state.sy < innerHeight * 1.2 && heroW1 && heroW2) {
+      heroW1.style.setProperty("--wd1", (150 - state.smx * 45).toFixed(1) + "%");
+      heroW2.style.setProperty("--wd2", (56 + state.smx * 24).toFixed(1) + "%");
+    }
     const sk = clamp(state.vel * 0.06, -3, 3);
     for (const el of skewEls) el.style.transform = `skewY(${sk.toFixed(2)}deg)`;
 
