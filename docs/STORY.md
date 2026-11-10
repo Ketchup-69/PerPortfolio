@@ -50,25 +50,26 @@ Proof, all from the resume:
 - An awards inbox → 17 wins.
 - Captain at 16. People hand him the ball.
 
-Off limits: family, and any club or volunteering activity. Do not add either back.
+Off limits: family, any club or volunteering activity, and portraits of Om. Do not add any of them back.
 
-## 3. Direction (mockup v2): one ink on ivory
+## 3. Direction (mockup v3): one ink, one live stage
 
 - Ivory paper, one blue ink in five tones. Light theme only.
-- Pictures are dithered (ordered Bayer 8×8, five tones). Diagrams are plotted in ASCII.
-- Hero portrait: dithered, with an ASCII lens under the pointer.
-- Every section gets its own composition on a 12-column sheet.
+- Text on the left. One sticky stage on the right, drawn live in the browser.
+- The stage redraws for each section: earth, the vizag to dubai route, the number on the open case file, a ball in play, a record, a ripple.
+- Two renderers for the same scene: shape-matched ASCII (each cell sampled at 2 x 3 points) and five-tone ordered dither.
+- No portrait. No photos of Om.
 
 ## 4. The trail
 
-| # | Section | What it holds |
-|---|---------|---------------|
-| 00 | hello | name, one line, four facts, portrait |
-| 01 | route | ASCII map vizag → dubai, live clocks, timeline 2010–2026 |
-| 02 | work | six text-only case files, numbers drawn in dither |
-| 03 | courts | three sports, ASCII court diagrams |
-| 04 | off the clock | six interests as a stamp sheet, playlist, contact sheet |
-| 05 | write | typed portrait, links, resume |
+| # | Section | Text | Stage |
+|---|---------|------|-------|
+| 00 | hello | name, one line, four facts | earth, spinning, draggable |
+| 01 | route | live clocks, timeline 2010 to 2026 | zoom to the route |
+| 02 | work | six text-only case files | the file's number |
+| 03 | courts | three sports | the ball for the chosen sport |
+| 04 | off the clock | stamp sheet, playlist, contact sheet | a record at 33 1/3 |
+| 05 | write | links, resume | a ripple |
 
 ## 5. Still needed from Om `[?]`
 - Role at Algomotive, one line.

@@ -4,8 +4,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Doto:wght@400..900&family=Hanken+Grotesk:wght@400..800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* One ink on ivory. A 12-column sheet; every section gets its own composition.
-   Pictures are dithered in five blue tones; diagrams are plotted in ASCII. */
+/* One ink on ivory. Text on the left; one live stage on the right that redraws
+   itself for each section, in characters or in dots. */
 :root{
   color-scheme:light;
   --paper:#FAF7EC; --sheet:#FFFDF6;
@@ -15,6 +15,7 @@
   --body:"Hanken Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   --t-micro:.6875rem; --t-small:.875rem; --t-body:1.0625rem; --t-lede:1.3125rem;
+  --bar:45px;
   background:var(--paper);
 }
 *,*::before,*::after{box-sizing:border-box}
@@ -22,9 +23,8 @@ html{-webkit-text-size-adjust:100%}
 @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
 body{margin:0;background:var(--paper);color:var(--ink);font:400 var(--t-body)/1.55 var(--body);-webkit-font-smoothing:antialiased}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--paper)}
-p,h1,h2,h3,dl,dd,dt,ol,ul,figure,pre{margin:0;padding:0}
+p,h1,h2,h3,dl,dd,dt,ol,ul,figure{margin:0;padding:0}
 ol,ul{list-style:none}
-pre{font-family:var(--mono);line-height:1.2;white-space:pre;overflow:hidden;user-select:text}
 a{color:inherit;text-decoration:underline;text-decoration-color:var(--b3);text-decoration-thickness:1.5px;text-underline-offset:.2em}
 a:hover{color:var(--b4)}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
@@ -35,7 +35,6 @@ canvas{display:block}
 .tbd{font-family:var(--mono);font-size:.8em;color:var(--ink-3)}
 .k{color:var(--ink-3)}
 
-/* bar: name, sections, ascii progress, live clock */
 .bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:var(--paper);border-bottom:1px solid var(--rule)}
 .bar-in,.wrap{max-width:1232px;margin-inline:auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .bar-in{display:flex;align-items:center;gap:8px 12px;min-height:44px;white-space:nowrap}
@@ -44,122 +43,107 @@ canvas{display:block}
 .bar nav a{text-decoration:none;color:var(--ink-3)}
 .bar nav a:hover,.bar nav a[aria-current]{color:var(--ink)}
 .prog{margin-left:auto;color:var(--b4);white-space:pre}
-.clock{color:var(--ink-3);white-space:nowrap}
+.clock{color:var(--ink-3)}
 .clock i{font-style:normal;color:var(--ink)}
 
-.sec{padding-block:72px;border-top:1px solid var(--rule);scroll-margin-top:44px}
-.sec:first-of-type{border-top:0;padding-block:40px 64px}
-.g{display:grid;grid-template-columns:minmax(0,1fr);gap:32px}
-.g>*{min-width:0}
+/* the stage */
+.stage{position:sticky;top:calc(var(--bar) + env(safe-area-inset-top,0px));z-index:5;background:var(--paper);padding-block:10px 8px;border-bottom:1px solid var(--rule)}
+.sbox{height:min(34vh,250px);position:relative;touch-action:pan-y;cursor:grab}
+.sbox canvas{position:absolute;inset:0;width:100%;height:100%}
+.scap{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px;color:var(--ink-3)}
+.scap b{font-weight:500;color:var(--b4);margin-right:.8em}
+.scap span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seg{display:inline-flex;flex:none;border:1px solid var(--ink)}
+.seg button{padding:3px 10px;font:inherit}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+
+.sec{padding-block:64px;border-top:1px solid var(--rule);scroll-margin-top:calc(var(--bar) + min(34vh,250px) + 50px)}
+.sec:first-child{border-top:0;padding-top:36px}
+.sec>*+*{margin-top:28px}
 .mark{display:flex;flex-wrap:wrap;gap:2px 16px;color:var(--ink-3)}
 .mark b{color:var(--b4);font-weight:500}
 h1,h2{font-family:var(--display);font-weight:900;letter-spacing:-.02em;line-height:.92;text-wrap:balance}
-h1{font-size:clamp(3.75rem,10.5vw,8.5rem);margin-top:20px}
-h2{font-size:clamp(2.75rem,6vw,4.5rem);margin-top:10px}
+h1{font-size:clamp(3.5rem,9vw,7.25rem);margin-top:16px}
+h2{font-size:clamp(2.75rem,6vw,4.25rem);margin-top:10px}
 h3{font:700 1.25rem/1.25 var(--body);letter-spacing:-.01em}
 .lede{font-size:var(--t-lede);line-height:1.4;letter-spacing:-.005em;max-width:34ch;text-wrap:pretty}
-.intro{color:var(--ink-2);max-width:52ch;text-wrap:pretty}
+.intro{color:var(--ink-2);max-width:52ch;text-wrap:pretty;margin-top:16px}
 .cap{color:var(--ink-3);margin-top:10px;display:flex;flex-wrap:wrap;gap:2px 16px;justify-content:space-between}
 
-/* hero */
-.hero .lede{margin-top:24px}
-.facts{margin-top:36px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--ink)}
-.facts div{padding:12px 12px 12px 0;border-bottom:1px solid var(--rule);min-width:0}
+.facts,.read{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--ink)}
+.facts div,.read div{padding:11px 12px 11px 0;border-bottom:1px solid var(--rule);min-width:0}
 .facts dd{font-size:var(--t-small);line-height:1.4;margin-top:2px}
-.plate{position:relative;width:min(100%,432px);justify-self:center}
-.pbox{aspect-ratio:4/5;position:relative;touch-action:pan-y;cursor:crosshair}
-.pbox::before{content:"";position:absolute;inset:-12px;pointer-events:none;background:
-  linear-gradient(var(--ink),var(--ink)) 0 12px/8px 1px,linear-gradient(var(--ink),var(--ink)) 12px 0/1px 8px,
-  linear-gradient(var(--ink),var(--ink)) 100% 12px/8px 1px,linear-gradient(var(--ink),var(--ink)) calc(100% - 12px) 0/1px 8px,
-  linear-gradient(var(--ink),var(--ink)) 0 calc(100% - 12px)/8px 1px,linear-gradient(var(--ink),var(--ink)) 12px 100%/1px 8px,
-  linear-gradient(var(--ink),var(--ink)) 100% calc(100% - 12px)/8px 1px,linear-gradient(var(--ink),var(--ink)) calc(100% - 12px) 100%/1px 8px;
-  background-repeat:no-repeat}
-.seg{display:inline-flex;border:1px solid var(--ink)}
-.seg button{padding:3px 10px;font:inherit}
-.seg button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
-.tones{display:inline-flex;vertical-align:middle;margin-right:8px}
-.tones i{width:10px;height:10px}
-.tones i:nth-child(1){background:var(--b1)}.tones i:nth-child(2){background:var(--b2)}.tones i:nth-child(3){background:var(--b3)}.tones i:nth-child(4){background:var(--b4)}.tones i:nth-child(5){background:var(--b5)}
-
-/* route */
-.map{color:var(--b2);background:var(--sheet);border:1px solid var(--rule);padding:14px 0 10px}
-.map .c{color:var(--b3)} .map .s{color:var(--ink-3)} .map .r{color:var(--b4)} .map .p{color:var(--ink);font-weight:500} .map .f{color:var(--paper);background:var(--b5)}
-.read{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid var(--ink);margin-top:16px}
-.read div{padding:10px 12px 10px 0;border-bottom:1px solid var(--rule)}
-.read dd{font:900 1.75rem/1.1 var(--display);letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums}
+.read dd,.big{font:900 1.75rem/1.1 var(--display);letter-spacing:-.01em;margin-top:2px;font-variant-numeric:tabular-nums}
 .line li{display:grid;grid-template-columns:5.25rem minmax(0,1fr);gap:12px;padding-block:9px;border-top:1px solid var(--rule);font-size:var(--t-small);line-height:1.45}
 .line li:first-child{border-top:1px solid var(--ink)}
 .yr{color:var(--b4);padding-top:2px}
 
-/* work */
+.split{display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+.split>*{min-width:0}
 .tabs{border-top:1px solid var(--ink)}
-.tabs button{display:grid;grid-template-columns:2.75rem minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:13px 8px 13px 0;border-bottom:1px solid var(--rule);font-weight:600}
+.tabs button{display:grid;grid-template-columns:2.75rem minmax(0,1fr) auto;gap:8px;align-items:baseline;width:100%;padding:12px 8px 12px 0;border-bottom:1px solid var(--rule);font-weight:600;font-size:var(--t-small)}
 .tabs button .k{font-weight:400}
 .tabs button[aria-selected="true"]{color:var(--b4);border-bottom-color:var(--b4)}
 .tabs button[aria-selected="true"] .k{color:var(--b4)}
-.panel{background:var(--sheet);border:1px solid var(--rule);padding:20px;min-height:100%}
-.panel canvas{width:min(100%,396px);height:auto;aspect-ratio:3/1;image-rendering:pixelated}
-.unit{color:var(--ink-3);display:block;margin:6px 0 20px}
-.steps{margin-top:14px}
-.steps div{display:grid;grid-template-columns:6.5rem minmax(0,1fr);gap:12px;padding-block:10px;border-top:1px solid var(--rule);font-size:var(--t-small);line-height:1.5}
-.nowline{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;border:1px solid var(--ink);padding:12px 14px;margin-top:20px;font-size:var(--t-small)}
+.panel{background:var(--sheet);border:1px solid var(--rule);padding:18px 20px}
+.big{font-size:3.25rem;line-height:1;color:var(--b4);margin:0}
+.unit{color:var(--ink-3);display:block;margin:4px 0 16px}
+.steps{margin-top:12px}
+.steps div{display:grid;grid-template-columns:6rem minmax(0,1fr);gap:12px;padding-block:9px;border-top:1px solid var(--rule);font-size:var(--t-small);line-height:1.5}
+.nowline{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;border:1px solid var(--ink);padding:12px 14px;font-size:var(--t-small)}
 .nowline .k{color:var(--b4)}
-.kit{display:flex;flex-wrap:wrap;gap:6px 8px;margin-top:14px}
+.kit{display:flex;flex-wrap:wrap;gap:6px 8px}
 .kit li{border:1px solid var(--rule);padding:2px 8px}
 
-/* courts */
-.court{color:var(--b4);background:var(--sheet);border:1px solid var(--rule);padding:16px 0}
 .rows{border-top:1px solid var(--ink)}
 .rows button{display:grid;grid-template-columns:6.5rem minmax(0,1fr);gap:12px;width:100%;padding:13px 0;border-bottom:1px solid var(--rule);font-size:var(--t-small);line-height:1.45}
 .rows button b{font:700 1.0625rem/1.3 var(--body)}
 .rows button[aria-pressed="true"] b{color:var(--b4)}
-.rows button[aria-pressed="true"] b::after{content:"  <";font-family:var(--mono);font-weight:400}
+.rows button[aria-pressed="true"] .k{color:var(--b4)}
 
-/* off the clock */
-.stamps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;filter:drop-shadow(0 0 .6px rgba(12,20,64,.6))}
+.stamps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;filter:drop-shadow(0 0 .6px rgba(12,20,64,.6))}
 .stamp{position:relative;aspect-ratio:4/5;background:radial-gradient(circle,transparent 2.7px,var(--sheet) 3.2px) -5px -5px/10px 10px}
 .stamp::before{content:"";position:absolute;inset:5px;background:var(--sheet)}
-.stamp canvas{position:absolute;inset:11px 11px 30px;width:calc(100% - 22px);height:calc(100% - 41px);image-rendering:pixelated;border:1px solid var(--b5)}
-.stamp span{position:absolute;left:11px;right:11px;bottom:10px;display:flex;justify-content:space-between;font:400 .625rem/1.4 var(--mono);color:var(--b5)}
-.play{background:var(--sheet);border:1px solid var(--rule);padding:16px}
-.play pre{color:var(--b4);font-size:.75rem;line-height:1}
-.play ol{margin-top:12px}
+.stamp canvas{position:absolute;inset:11px 11px 28px;width:calc(100% - 22px);height:calc(100% - 39px);image-rendering:pixelated;border:1px solid var(--b5)}
+.stamp span{position:absolute;left:11px;right:11px;bottom:9px;display:flex;justify-content:space-between;font:400 .5625rem/1.4 var(--mono);color:var(--b5);white-space:nowrap;overflow:hidden}
+.play{background:var(--sheet);border:1px solid var(--rule);padding:14px 16px}
 .play li{display:grid;grid-template-columns:1.75rem minmax(0,1fr) auto;gap:8px;padding-block:7px;border-top:1px dashed var(--rule);color:var(--ink-3)}
+.play li:first-child{border-top:0;margin-top:6px}
 .film{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .film canvas{width:100%;height:auto;aspect-ratio:3/2;image-rendering:pixelated;border:1px solid var(--rule);background:var(--sheet)}
 .film figcaption{font:400 .625rem/1.6 var(--mono);color:var(--ink-3)}
 
-/* write */
-.me{color:var(--b4);line-height:1}
-.me .t2{color:var(--b3)} .me .t3{color:var(--b5)}
 .links{border-bottom:1px solid var(--ink)}
 .links a{display:grid;grid-template-columns:5.5rem minmax(0,1fr) auto;gap:12px;align-items:baseline;padding-block:15px;border-top:1px solid var(--ink);text-decoration:none}
 .links a b{font:900 clamp(1.5rem,3.4vw,2.25rem)/1.1 var(--display);overflow-wrap:anywhere}
 .spec div{display:grid;grid-template-columns:5.5rem minmax(0,1fr);gap:12px;padding-block:10px;border-bottom:1px solid var(--rule);font-size:var(--t-small);line-height:1.5}
-.colo{margin-top:56px;padding-block:14px 40px;border-top:1px solid var(--rule);color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px 28px;justify-content:space-between}
+.colo{padding-block:14px 40px;border-top:1px solid var(--rule);color:var(--ink-3);display:flex;flex-wrap:wrap;gap:6px 28px;justify-content:space-between}
+.tones{display:inline-flex;vertical-align:middle;margin-right:8px}
+.tones i{width:10px;height:10px}
+.tones i:nth-child(1){background:var(--b1)}.tones i:nth-child(2){background:var(--b2)}.tones i:nth-child(3){background:var(--b3)}.tones i:nth-child(4){background:var(--b4)}.tones i:nth-child(5){background:var(--b5)}
 
 @media (min-width:640px){
   .stamps{grid-template-columns:repeat(6,minmax(0,1fr))}
+  .facts,.read{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .read.two{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .split{grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:start}
+  .split.media{grid-template-columns:minmax(0,4fr) minmax(0,8fr)}
   .film{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .read{grid-template-columns:repeat(4,minmax(0,1fr))}
 }
 @media (min-width:960px){
   .bar-in{gap:8px 28px}.bar nav{display:flex}.prog{margin-left:0}
-  .sec{padding-block:112px}
-  .sec:first-of-type{padding-block:64px 104px}
-  .g{grid-template-columns:repeat(12,minmax(0,1fr));gap:40px 32px;align-items:start}
-  .c12{grid-column:1/-1}.c8{grid-column:span 8}.c7{grid-column:span 7}.c6{grid-column:span 6}.c5{grid-column:span 5}.c4{grid-column:span 4}
-  .hd{grid-column:1/-1;display:grid;grid-template-columns:subgrid;align-items:end}
-  .hd>:first-child{grid-column:span 5}.hd>.intro{grid-column:span 6;grid-column-end:-1}
-  .hero .g{align-items:center}
-  .plate{justify-self:end}
-  .facts{grid-template-columns:repeat(4,minmax(0,1fr))}
+  main.wrap{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));column-gap:32px}
+  .col{grid-column:1/span 7;grid-row:1;min-width:0}
+  .stage{grid-column:8/-1;grid-row:1;align-self:start;top:calc(var(--bar) + 36px + env(safe-area-inset-top,0px));margin-top:36px;padding:0 0 0 24px;border:0}
+  .sbox{height:auto;aspect-ratio:4/5;max-height:calc(100vh - 170px)}
+  .sec{padding-block:104px;scroll-margin-top:var(--bar)}
+  .sec:first-child{padding-top:64px;min-height:calc(100vh - 80px)}
 }
 </style>
 
 <header class="bar">
   <div class="bar-in">
-    <b>om kashyap vedula</b>
+    <b>om kashyap</b>
     <nav aria-label="sections" id="nav">
       <a href="#route">route</a><a href="#work">work</a><a href="#courts">courts</a><a href="#offclock">off the clock</a><a href="#write">write</a>
     </nav>
@@ -170,403 +154,409 @@ h3{font:700 1.25rem/1.25 var(--body);letter-spacing:-.01em}
 
 <main class="wrap">
 
-<section class="sec hero" id="hello">
-  <div class="g">
-    <div class="c7">
-      <p class="mark"><b>00</b><span>portfolio, 2026</span><span>25.20° N, 55.27° E</span></p>
-      <h1>hey, i'm om.</h1>
-      <p class="lede">i make messy things work. payroll, bug reports, an HR system built from nothing. raised in vizag, working in dubai.</p>
-      <dl class="facts">
-        <div><dt class="k">now</dt><dd>Algomotive, dubai <span class="tbd">[role]</span></dd></div>
-        <div><dt class="k">before</dt><dd>MicroGrid Technologies, 2023 to 2026</dd></div>
-        <div><dt class="k">studied</dt><dd>BBA, GITAM, class of 2026</dd></div>
-        <div><dt class="k">good at</dt><dd>business development, operations, getting it shipped</dd></div>
-      </dl>
-    </div>
-    <figure class="plate c5">
-      <div class="pbox" id="pbox"><canvas id="portrait" role="img" aria-label="Portrait of Om, dithered in five tones of blue. Move over it to see the same picture in ASCII."></canvas></div>
-      <figcaption class="cap">
-        <span><span class="tones" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>one ink, five tones</span>
-        <span class="seg" role="group" aria-label="portrait rendering">
-          <button type="button" id="mDither" aria-pressed="true">dither</button><button type="button" id="mAscii" aria-pressed="false">ascii</button>
-        </span>
-      </figcaption>
-    </figure>
+<aside class="stage" aria-label="live figure">
+  <div class="sbox" id="sbox"><canvas id="stage" role="img" aria-label="A live drawing that changes with each section: a globe, a route, a number, a ball, a record, a ripple."></canvas></div>
+  <p class="scap m">
+    <span><b id="figNo">fig. 00</b><span id="figCap">earth, live. drag to spin.</span></span>
+    <span class="seg" role="group" aria-label="rendering">
+      <button type="button" id="mAscii" aria-pressed="true">ascii</button><button type="button" id="mDither" aria-pressed="false">dither</button>
+    </span>
+  </p>
+</aside>
+
+<div class="col">
+
+<section class="sec" id="hello" data-fig="earth, live. drag to spin.">
+  <div>
+    <p class="mark"><b>00</b><span>portfolio, 2026</span><span>25.20° N, 55.27° E</span></p>
+    <h1>hey, i'm om.</h1>
   </div>
+  <p class="lede">i make messy things work. payroll, bug reports, an HR system built from nothing. raised in vizag, working in dubai.</p>
+  <dl class="facts">
+    <div><dt class="k">now</dt><dd>Algomotive, dubai <span class="tbd">[role]</span></dd></div>
+    <div><dt class="k">before</dt><dd>MicroGrid Technologies, 2023 to 2026</dd></div>
+    <div><dt class="k">studied</dt><dd>BBA, GITAM, class of 2026</dd></div>
+    <div><dt class="k">good at</dt><dd>business development, operations, getting it shipped</dd></div>
+  </dl>
 </section>
 
-<section class="sec" id="route">
-  <div class="g">
-    <header class="hd">
-      <div><p class="mark"><b>01</b><span>2010 to 2026</span></p><h2>route</h2></div>
-      <p class="intro">thirteen years at one school in vizag. three more at university in the same city. then one flight west.</p>
-    </header>
-    <div class="c8">
-      <pre class="map" id="map" data-cols="72" aria-label="ASCII map of the Arabian Sea with a route from Visakhapatnam to Dubai"></pre>
-      <dl class="read">
-        <div><dt class="k">distance</dt><dd id="dist">0 km</dd></div>
-        <div><dt class="k">time difference</dt><dd>1 h 30</dd></div>
-        <div><dt class="k">vizag, now</dt><dd id="ckV">--:--</dd></div>
-        <div><dt class="k">dubai, now</dt><dd id="ckD">--:--</dd></div>
-      </dl>
-    </div>
-    <ol class="line c4">
-      <li><span class="yr">2010</span><span>first day at ETASI Timpany School, vizag.</span></li>
-      <li><span class="yr">2021</span><span>class X done. two state call-ups in basketball by then.</span></li>
-      <li><span class="yr">2023</span><span>class XII done. house captain, basketball captain. three more state call-ups.</span></li>
-      <li><span class="yr">2023</span><span>BBA at GITAM starts. so does the job at MicroGrid, in december.</span></li>
-      <li><span class="yr">2025</span><span>AP state pickleball, singles quarter-final.</span></li>
-      <li><span class="yr">03.2026</span><span>left MicroGrid to sit final-semester exams.</span></li>
-      <li><span class="yr">08.2026</span><span>graduated.</span></li>
-      <li><span class="yr">21.09.2026</span><span>landed in dubai.</span></li>
-      <li><span class="yr">23.09.2026</span><span>day one at Algomotive.</span></li>
-    </ol>
+<section class="sec" id="route" data-fig="vizag to dubai, great circle.">
+  <div>
+    <p class="mark"><b>01</b><span>2010 to 2026</span></p>
+    <h2>route</h2>
+    <p class="intro">thirteen years at one school in vizag. three more at university in the same city. then one flight west.</p>
   </div>
+  <dl class="read">
+    <div><dt class="k">distance</dt><dd id="dist">0 km</dd></div>
+    <div><dt class="k">time difference</dt><dd>1 h 30</dd></div>
+    <div><dt class="k">vizag, now</dt><dd id="ckV">--:--</dd></div>
+    <div><dt class="k">dubai, now</dt><dd id="ckD">--:--</dd></div>
+  </dl>
+  <ol class="line">
+    <li><span class="yr">2010</span><span>first day at ETASI Timpany School, vizag.</span></li>
+    <li><span class="yr">2021</span><span>class X done. two state call-ups in basketball by then.</span></li>
+    <li><span class="yr">2023</span><span>class XII done. house captain, basketball captain. three more state call-ups.</span></li>
+    <li><span class="yr">2023</span><span>BBA at GITAM starts. so does the job at MicroGrid, in december.</span></li>
+    <li><span class="yr">2025</span><span>AP state pickleball, singles quarter-final.</span></li>
+    <li><span class="yr">03.2026</span><span>left MicroGrid to sit final-semester exams.</span></li>
+    <li><span class="yr">08.2026</span><span>graduated.</span></li>
+    <li><span class="yr">21.09.2026</span><span>landed in dubai.</span></li>
+    <li><span class="yr">23.09.2026</span><span>day one at Algomotive.</span></li>
+  </ol>
 </section>
 
-<section class="sec" id="work">
-  <div class="g">
-    <header class="hd">
-      <div><p class="mark"><b>02</b><span>12.2023 to 03.2026</span><span>six files</span></p><h2>work</h2></div>
-      <p class="intro">business development and operations at MicroGrid Technologies, the enterprise AI company behind Colloki. all of it during a full-time degree. none of the work can be shown, so the numbers do the talking.</p>
-    </header>
-    <div class="c5">
-      <div class="tabs" role="tablist" aria-label="case files" id="tabs"></div>
-      <p class="nowline"><span class="k">now</span><span>Algomotive, dubai. since 23.09.2026. <span class="tbd">[role]</span></span></p>
-    </div>
-    <div class="c7">
-      <div class="panel" role="tabpanel" id="panel" aria-live="polite">
-        <canvas id="num" width="132" height="44" aria-hidden="true"></canvas>
-        <span class="unit" id="pUnit"></span>
-        <h3 id="pTitle"></h3>
-        <dl class="steps">
-          <div><dt class="k">the brief</dt><dd id="pA"></dd></div>
-          <div><dt class="k">what i did</dt><dd id="pB"></dd></div>
-          <div><dt class="k">what came out</dt><dd id="pC"></dd></div>
-        </dl>
-      </div>
-      <ul class="kit m" aria-label="tools">
-        <li>Figma</li><li>Claude Code</li><li>SharePoint</li><li>Google Ads</li><li>Google Analytics</li><li>MS Office</li><li>Canva</li>
-      </ul>
-    </div>
+<section class="sec" id="work" data-fig="the number on this file.">
+  <div>
+    <p class="mark"><b>02</b><span>12.2023 to 03.2026</span><span>six files</span></p>
+    <h2>work</h2>
+    <p class="intro">business development and operations at MicroGrid Technologies, the enterprise AI company behind Colloki. all of it during a full-time degree. none of the work can be shown, so the numbers do the talking.</p>
   </div>
-</section>
-
-<section class="sec" id="courts">
-  <div class="g">
-    <header class="hd">
-      <div><p class="mark"><b>03</b><span>three sports</span></p><h2>courts</h2></div>
-      <p class="intro">state level in two sports before i left school. picked up a third one later and took it to a state quarter-final.</p>
-    </header>
-    <figure class="c7">
-      <pre class="court" id="court" data-cols="53" aria-label="ASCII court diagram"></pre>
-      <figcaption class="cap"><span id="courtCap">basketball, half court</span><span>plotted in ascii, 49 × 17</span></figcaption>
-    </figure>
-    <div class="c5">
-      <div class="rows" id="rows">
-        <button type="button" data-court="basketball" aria-pressed="true"><span class="k">2010 to 2023</span><span><b>basketball</b><br>school team captain. 2× state at U16, state again at U18.</span></button>
-        <button type="button" data-court="football" aria-pressed="false"><span class="k">to 2023</span><span><b>football</b><br>state athlete at U18.</span></button>
-        <button type="button" data-court="pickleball" aria-pressed="false"><span class="k">2025</span><span><b>pickleball</b><br>quarter-finalist, AP State Championship, singles.</span></button>
-      </div>
-      <dl class="read" style="grid-template-columns:repeat(2,minmax(0,1fr))">
-        <div><dt class="k">state call-ups</dt><dd>5×</dd></div>
-        <div><dt class="k">captaincies</dt><dd>2</dd></div>
+  <div class="split">
+    <div class="tabs" role="tablist" aria-label="case files" id="tabs"></div>
+    <div class="panel" role="tabpanel" id="panel" aria-live="polite">
+      <p class="big" id="pNum"></p>
+      <span class="unit" id="pUnit"></span>
+      <h3 id="pTitle"></h3>
+      <dl class="steps">
+        <div><dt class="k">the brief</dt><dd id="pA"></dd></div>
+        <div><dt class="k">what i did</dt><dd id="pB"></dd></div>
+        <div><dt class="k">what came out</dt><dd id="pC"></dd></div>
       </dl>
     </div>
   </div>
+  <p class="nowline"><span class="k">now</span><span>Algomotive, dubai. since 23.09.2026. <span class="tbd">[role]</span></span></p>
+  <ul class="kit m" aria-label="tools">
+    <li>Figma</li><li>Claude Code</li><li>SharePoint</li><li>Google Ads</li><li>Google Analytics</li><li>MS Office</li><li>Canva</li>
+  </ul>
 </section>
 
-<section class="sec" id="offclock">
-  <div class="g">
-    <header class="hd">
-      <div><p class="mark"><b>04</b><span>six interests, one sheet</span></p><h2>off the clock</h2></div>
-      <p class="intro">i collected stamps as a kid. four binders, still in vizag. so the things i care about are filed the same way.</p>
-    </header>
-    <div class="c12">
-      <div class="stamps" id="stamps"></div>
-      <p class="cap"><span>sheet of 6, perforated <span class="tbd">[stand-in designs until the binders get scanned]</span></span><span>philately, since before 7th grade</span></p>
-    </div>
-    <div class="play c4">
+<section class="sec" id="courts" data-fig="basketball, in play.">
+  <div>
+    <p class="mark"><b>03</b><span>three sports</span></p>
+    <h2>courts</h2>
+    <p class="intro">state level in two sports before i left school. picked up a third one later and took it to a state quarter-final. pick one and the ball changes.</p>
+  </div>
+  <div class="rows" id="rows">
+    <button type="button" data-sport="basketball" aria-pressed="true"><span class="k">2010 to 2023</span><span><b>basketball</b><br>school team captain. 2× state at U16, state again at U18.</span></button>
+    <button type="button" data-sport="football" aria-pressed="false"><span class="k">to 2023</span><span><b>football</b><br>state athlete at U18.</span></button>
+    <button type="button" data-sport="pickleball" aria-pressed="false"><span class="k">2025</span><span><b>pickleball</b><br>quarter-finalist, AP State Championship, singles.</span></button>
+  </div>
+  <dl class="read two">
+    <div><dt class="k">state call-ups</dt><dd>5×</dd></div>
+    <div><dt class="k">captaincies</dt><dd>2</dd></div>
+  </dl>
+</section>
+
+<section class="sec" id="offclock" data-fig="33⅓ rpm.">
+  <div>
+    <p class="mark"><b>04</b><span>six interests, one sheet</span></p>
+    <h2>off the clock</h2>
+    <p class="intro">i collected stamps as a kid. four binders, still in vizag. so the things i care about are filed the same way.</p>
+  </div>
+  <div>
+    <div class="stamps" id="stamps"></div>
+    <p class="cap"><span>sheet of 6 <span class="tbd">[stand-in designs until the binders get scanned]</span></span><span>philately, since before 7th grade</span></p>
+  </div>
+  <div class="split media">
+    <div class="play">
       <p class="k">on repeat <span class="tbd">[playlist]</span></p>
-      <pre id="meter" aria-hidden="true"></pre>
       <ol class="m">
         <li><span>01</span><span>[track] · [artist]</span><span>[0:00]</span></li>
         <li><span>02</span><span>[track] · [artist]</span><span>[0:00]</span></li>
         <li><span>03</span><span>[track] · [artist]</span><span>[0:00]</span></li>
       </ol>
     </div>
-    <div class="c8">
+    <div>
       <div class="film" id="film"></div>
       <p class="cap"><span>contact sheet <span class="tbd">[your photos go here]</span></span><span>photography</span></p>
     </div>
   </div>
 </section>
 
-<section class="sec" id="write">
-  <div class="g">
-    <header class="hd">
-      <div><p class="mark"><b>05</b><span>that's the full picture</span></p><h2>write</h2></div>
-      <p class="intro">you know where i'm from, what i've done and what i do when nobody's paying me. the only thing left is to say hi.</p>
-    </header>
-    <figure class="c5">
-      <pre class="me" id="me" data-cols="80" aria-label="The same portrait as text"></pre>
-      <figcaption class="cap"><span>same portrait, typed</span><span>80 × 60 characters. select it.</span></figcaption>
-    </figure>
-    <div class="c7">
-      <div class="links">
-        <a href="https://www.linkedin.com/in/vomkashyap"><span class="k">linkedin</span><b>in/vomkashyap</b><span class="m" aria-hidden="true">open</span></a>
-        <a href="https://github.com/Ketchup-69"><span class="k">github</span><b>@Ketchup-69</b><span class="m" aria-hidden="true">open</span></a>
-        <a href="../assets/Om_Kashyap_Vedula_Resume.pdf"><span class="k">resume</span><b>one page, pdf</b><span class="m" aria-hidden="true">save</span></a>
-      </div>
-      <dl class="spec">
-        <div><dt class="k">based</dt><dd>dubai, UTC+4</dd></div>
-        <div><dt class="k">open to</dt><dd><span class="tbd">[one line: what you're open to]</span></dd></div>
-        <div><dt class="k">learning</dt><dd>building small things with Claude Code and Figma.</dd></div>
-      </dl>
-    </div>
+<section class="sec" id="write" data-fig="signal out.">
+  <div>
+    <p class="mark"><b>05</b><span>that's the full picture</span></p>
+    <h2>write</h2>
+    <p class="intro">you know where i'm from, what i've done and what i do when nobody's paying me. the only thing left is to say hi.</p>
   </div>
-  <p class="colo m"><span><span class="tones" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>printed in one ink. bayer 8 × 8, five tones.</span><span>set in Doto, Hanken Grotesk, IBM Plex Mono.</span><span>still becoming, in real time.</span></p>
+  <div class="links">
+    <a href="https://www.linkedin.com/in/vomkashyap"><span class="k">linkedin</span><b>in/vomkashyap</b><span class="m" aria-hidden="true">open</span></a>
+    <a href="https://github.com/Ketchup-69"><span class="k">github</span><b>@Ketchup-69</b><span class="m" aria-hidden="true">open</span></a>
+    <a href="../assets/Om_Kashyap_Vedula_Resume.pdf"><span class="k">resume</span><b>one page, pdf</b><span class="m" aria-hidden="true">save</span></a>
+  </div>
+  <dl class="spec">
+    <div><dt class="k">based</dt><dd>dubai, UTC+4</dd></div>
+    <div><dt class="k">open to</dt><dd><span class="tbd">[one line: what you're open to]</span></dd></div>
+    <div><dt class="k">learning</dt><dd>building small things with Claude Code and Figma.</dd></div>
+  </dl>
+  <p class="colo m"><span><span class="tones" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>one ink, five tones. drawn live in your browser.</span><span>set in Doto, Hanken Grotesk, IBM Plex Mono.</span><span>still becoming, in real time.</span></p>
 </section>
 
+</div>
 </main>
 
 <script>
-/* Portrait source. Leave empty to fall back to the procedural stand-in. */
-const PORTRAIT_SRC = 'portrait.jpg';
-
 (() => {
   const $ = id => document.getElementById(id);
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
-  const PAPER = '#FAF7EC', HEX = ['#D5DDF3', '#9DB1EA', '#5B74DE', '#2A3BC2', '#111C6E'];
+  const PAPER = '#FAF7EC', INK = '#0C1440', HEX = ['#D5DDF3', '#9DB1EA', '#5B74DE', '#2A3BC2', '#111C6E'];
   const abgr = h => { const n = parseInt(h.slice(1), 16); return (0xFF000000 | (n & 255) << 16 | (n >> 8 & 255) << 8 | n >> 16) >>> 0; };
   const TONES = [0, ...HEX.map(abgr)];
   const BAYER = [0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,12,44,4,36,14,46,6,38,60,28,52,20,62,30,54,22,
                  3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21];
   const thresh = (x, y) => (BAYER[(y & 7) * 8 + (x & 7)] + .5) / 64;
-  /* luminance -> one of six levels (paper + five inks), ordered dither between neighbours */
-  const tone = (l, x, y) => { const v = Math.max(0, Math.min(1, 1 - l)) * 5, i = Math.floor(v); return Math.min(5, i + (v - i > thresh(x, y) ? 1 : 0)); };
-  const G = v => { v = Math.round(v * 255); return `rgb(${v},${v},${v})`; };
+  /* ink amount 0..1 -> paper or one of five inks, ordered dither between neighbours */
+  const toneOf = (L, x, y) => { const v = (L < 0 ? 0 : L > 1 ? 1 : L) * 5, i = Math.floor(v); return Math.min(5, i + (v - i > thresh(x, y) ? 1 : 0)); };
   const calm = matchMedia('(prefers-reduced-motion:reduce)');
-  const RAMP = ' .:-=+*#%@';
+  const PI = Math.PI, TAU = PI * 2, RAD = PI / 180;
+  const sstep = (a, b, x) => { x = (x - a) / (b - a); x = x < 0 ? 0 : x > 1 ? 1 : x; return x * x * (3 - 2 * x); };
+  const hash = (x, y) => { let n = Math.imul(x, 374761393) ^ Math.imul(y, 668265263); n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  const vnoise = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    const a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1); return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy; };
+  const fbm = (x, y) => vnoise(x, y) * .65 + vnoise(x * 2.1 + 7.3, y * 2.1 + 1.7) * .35;
 
-  /* greyscale drawing helpers */
-  const ell = (x, cx, cy, rx, ry, rot) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot || 0, 0, 7); x.fill(); };
-  const lin = (x, x0, y0, x1, y1, a, b) => { const g = x.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, G(a)); g.addColorStop(1, G(b)); x.fillStyle = g; };
-  const rad = (x, cx, cy, r0, r1, a, b) => { const g = x.createRadialGradient(cx, cy, r0, cx, cy, r1); g.addColorStop(0, G(a)); g.addColorStop(1, G(b)); x.fillStyle = g; };
-  const poly = (x, pts) => { x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.fill(); };
+  /* ================= the stage: scenes are functions of (u, v) -> ink ================= */
+  let T = 0;
 
-  /* turn a greyscale canvas into tonal dither, in place */
-  function tonal(cv) {
-    const w = cv.width, h = cv.height, x = cv.getContext('2d'), im = x.getImageData(0, 0, w, h), d = im.data, px = new Uint32Array(d.buffer);
-    for (let y = 0; y < h; y++) for (let X = 0; X < w; X++) {
-      const i = y * w + X, p = i * 4;
-      px[i] = d[p + 3] < 128 ? 0 : TONES[tone((d[p] * .299 + d[p + 1] * .587 + d[p + 2] * .114) / 255, X, y)];
+  /* ---- scene: earth. real coastlines, 256 x 128 land mask ---- */
+  const LAND64 = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP//wCf/wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA7//3/////4AAAAAAAQAAAAOAAAAAAAAAAAAAAAAAAAD//wf////+AAAPyAAAAAAAA+AAAAAAAAAAAAAAAAAMCwH4//////wAAAeYAAAAAAAAEAAAAAAAAAAAAAAAB4IB7/A/////+AAAAAAAAAAYAAAPYAAAAAAAAAAAAAAA/42/4AA////8AAAAAAAADwAAH//4AAfsAAAAAAAAAA+AAPAAAA////gAAAAAAAA4AAL///AAAAAAAAAAAAAAHv+ej+wAB///0AAAAAAAAGAHR/////8B+AAACAAMAAAI/8HH/4AB///wAAAABYAAMB///////7//EAAQAP//C9R/9uGH8Ab//+AAAAB/4AABj//////////9h8wD/////+HDecDwA//+AAAAAf//GN/3f////////////8D/////////gP8D//AAAAAD//+L//5////////////xh/////////0B8gH/AA/AAA/j+P////////////////AAP///////8eD8Af4ADwAAH+//////////////////4AH////////AwDAA/AAAAAD/n//////////////////wA////////4AHgAB8AAAAAP8f///////////////i/gAAfsD/////gAfgAAAAAAAA/4D//////////////8MAAAAOAD/////AB/4AAAAAAMDPB/////////////8ABgAAABoAB/////AD/wAAAAAAwCcf/////////////gAfAAAAwAAD/////gf/gAAAAABgLB/////////////4AB4AAAAAAAH/////j//gAAAABzA9//////////////lAHAAAAAAAAP/////P//AAAAAGef///////////////8AYAAAAAAAAf///////4AAAAAB7////////////////QBAAAAAAAAB///////gYAAAAAAf///////////////9AAAAAAAAAABf/////7DwAAAAAf////////////////0AAAAAAAAAAD//////8CAAAAAA////+///////////+QAAAAAAAAAAP//////+AAAAAAB///4n8P/////////wAAAAAAAAAAA//////9AAAAAAAH/n/Afj/////////+EAAAAAAAAAAH//////AAAAAAAf8DP8AfH/////////gwAAAAAAAAAAP/////4AAAAAAA/wmPxx+f////////wAAAAAAAAAAAA/////+AAAAAAAD8CEx//5///////+eAIAAAAAAAAAAD/////4AAAAAAAfwARn//j///////wYBgAAAAAAAAAAH/////AAAAAAAA+ACEf//P///////4wMAAAAAAAAAAAP////8AAAAAAAAD/AAA/////////+DBwAAAAAAAAAAA/////gAAAAAAAH/4AAD/////////4BoAAAAAAAAAAAAf///8AAAAAAAA//wAAf/////////wOAAAAAAAAAAAABf///AAAAAAAAH//48B//////////gAAAAAAAAAAAAAA//8cAAAAAAAAf//////////////8AAAAAAAAAAAAAAD/8AYAAAAAAAD//////8////////4AAAAAAAAAAAAAA3/gBgAAAAAAAf////9/5////////AAAAAAAAAAAAAAAv+ACAAAAAAAD/////z/4f//////4AAAAAAAAAAAAAACf4ACAAAAAAAf/////n/kA//////IAAAAAAAAAAAAAAA/AAAAAAAAAD/////+P/8B/////5AAAAAAAAAAAAAAAB+ABgAAAAAAP/////8//wH/+f/8AAAAAAAAAAAAAAAAH4MBgAAAAAA//////z/+AD/w/8gAAAAAAAAAAAAAAAAPxwA4AAAAAD//////n/4AP8B/mAAAAAAAAAAAAAAAAAP+AAAAAAAAP/////+P+AA/gH/ACAAAAAAAAAAAAAAAAN4AAAAAAAA//////8/gAD8AX+AIAAAAAAAAAAAAAAAAD+AAAAAAAD//////54AAHgAP8AAAAAAAAAAAAAAAAAAB4AAAAAAAP//////2AAAeAAvwAAAAAAAAAAAAAAAAAADAAAAAAAA///////gAAA4ACfAAAAAAAAAAAAAAAAAAAGD+4AAAAA//////+8AADgAIwAQAAAAAAAAAAAAAAAAANv/gAAAAD///////wAANAAgABQAAAAAAAAAAAAAAAAAL//AAAAAH//////+AAAEAAAAHAAAAAAAAAAAAAAAAAAH/+AAAAAP//////4AAAQAGAEIAAAAAAAAAAAAAAAAAAf//gAAAAMg/////AAAAADYAwAAAAAAAAAAAAAAAAAAB///AAAAAAAf///8AAAAAGwHAAAAAAAAAAAAAAAAAAAP//8AAAAAAB////AAAAAANB8AAAAAAAAAAAAAAAAAAB///wAAAAAAH///4AAAAAA4P3gAAAAAAAAAAAAAAAAAH///gAAAAAA////AAAAAABw/ECAAAAAAAAAAAAAAAAA////wAAAAAB///4AAAAAADD5gNgAAAAAAAAAAAAAAAB////8AAAAAD///AAAAAAAGBmA/wAAAAAAAAAAAAAAAP////8AAAAAP//8AAAAAAAIAUAfwAAAAAAAAAAAAAAA/////4AAAAAf//wAAAAAAAYAAE/ggAAAAAAAAAAAAAB/////gAAAAB///AAAAAAAAOAAD+AAAAAAAAAAAAAAAD////+AAAAAH//8AAAAAAAAACABMAgAAAAAAAAAAAAAH////wAAAAAP//4AAAAAAAAAAAAAAAAAAAAAAAAAAAAf///+AAAAAA///gAAAAAAAAAAgQAAAAAAAAAAAAAAAA////wAAAAAH//+BAAAAAAAAAHhAAAAAAAAAAAAAAAAD////AAAAAAf//4MAAAAAAAAG8GAAIAAAAAAAAAAAAAD///8AAAAAD///DgAAAAAAAA/84AAAAAAAAAAAAAAAAH///wAAAAAP//4eAAAAAAAAH/7wAAAgAAAAAAAAAAAAP///AAAAAAf/+B4AAAAAAAA///AAAAAAAAAAAAAAAAA///4AAAAAB//4HgAAAAAAAP///AAAAAAAAAAAAAAAAD///gAAAAAD//gcAAAAAAAD///8ACAAAAAAAAAAAAAAP//4AAAAAAP/+BwAAAAAAAf///4AAAAAAAAAAAAAAAA//8AAAAAAA//4HAAAAAAAB////wAAAAAAAAAAAAAAAD//gAAAAAAB/+AAAAAAAAAH////gAAAAAAAAAAAAAAAP/+AAAAAAAH/4AAAAAAAAAf///+AAAAAAAAAAAAAAAB//4AAAAAAAP/gAAAAAAAAA////4AAAAAAAAAAAAAAAH//AAAAAAAA/8AAAAAAAAAD////gAAAAAAAAAAAAAAAf/4AAAAAAAB/gAAAAAAAAAP/P/+AAAAAAAAAAAAAAAB//gAAAAAAAH8AAAAAAAAAA/AP/wAAAAAAAAAAAAAAAH/cAAAAAAAAIAAAAAAAAAADgAv+AAAAAAAAAAAAAAAA/+AAAAAAAAAAAAAAAAAAAAAAAf4AAQAAAAAAAAAAAAD/4AAAAAAAAAAAAAAAAAAAAAAA/gAAgAAAAAAAAAAAAP/AAAAAAAAAAAAAAAAAAAAAAAAAAADgAAAAAAAAAAAA/wAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAH8AAAAAAAAAAAAAAAAAAAAAAAAGAADAAAAAAAAAAAAAfwAAAAAAAAAAAAAAAAAAAAAAAAIAAYAAAAAAAAAAAAB/AAAAAAAAAAAAAAAAAAAAAAAAAAADAAAAAAAAAAAAAHwAAAAAAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAfgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAeBgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAPgAACAOPh/4AAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAP//gH///////4AAAAAAAAAAAAAAAAfgAAAAAAAAAAHv//+B/////////4AAAAAAAAAAAAAABvAAAAAAED///////4///////////wAAAAAAAAAA8AAE+AAAAAH/////////////////////gAAAAAABYAH//9/4AAAAD/////////////////////4AAAAAH////////8AAAAAf////////////////////+AAAAAH////////sAAAAD//////////////////////wAAAA/////////+AABwH///////////////////////gAAAYD////////gAAPgR//////////////////////4AAAAAH////////8ODgA///////////////////////AAAAAH//////////4P/////////////////////////AAAAAf/////////////////////////////////////wD/+AA//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////w==';
+  const LW = 256, LH = 128, LM = new Float32Array(LW * LH);
+  { const b = atob(LAND64); for (let i = 0; i < LW * LH; i++) LM[i] = (b.charCodeAt(i >> 3) >> (7 - (i & 7))) & 1; }
+  function land(lon, lat) {
+    const fx = (lon / TAU + .5) * LW - .5, fy = (.5 - lat / PI) * LH - .5;
+    const x0 = Math.floor(fx), y0 = Math.max(0, Math.min(LH - 2, Math.floor(fy))), tx = fx - x0, ty = Math.max(0, Math.min(1, fy - y0));
+    const xa = ((x0 % LW) + LW) % LW, xb = (xa + 1) % LW, r0 = y0 * LW, r1 = r0 + LW;
+    return (LM[r0 + xa] * (1 - tx) + LM[r0 + xb] * tx) * (1 - ty) + (LM[r1 + xa] * (1 - tx) + LM[r1 + xb] * tx) * ty;
+  }
+  const vec = (lat, lon) => [Math.cos(lat * RAD) * Math.sin(lon * RAD), Math.sin(lat * RAD), Math.cos(lat * RAD) * Math.cos(lon * RAD)];
+  const VZ = vec(17.68, 83.21), DX = vec(25.20, 55.27);
+  const AN = 40, AX = new Float32Array(AN), AY = new Float32Array(AN), AZ = new Float32Array(AN);
+  { const om = Math.acos(VZ[0] * DX[0] + VZ[1] * DX[1] + VZ[2] * DX[2]);
+    for (let i = 0; i < AN; i++) { const t = i / (AN - 1), a = Math.sin((1 - t) * om) / Math.sin(om), b = Math.sin(t * om) / Math.sin(om);
+      AX[i] = a * VZ[0] + b * DX[0]; AY[i] = a * VZ[1] + b * DX[1]; AZ[i] = a * VZ[2] + b * DX[2]; }
+    $('dist').textContent = (Math.round(6371 * om / 10) * 10).toLocaleString('en-US') + ' km'; }
+  const G = { lat: .3, lon: 1.0, R: .84, rw: 0, sl: 0, cl: 1, so: 0, co: 1, drag: null };
+  function globe(u, v) {
+    const x = u / G.R, y = -v / G.R, d2 = x * x + y * y;
+    if (d2 > 1) { const d = Math.sqrt(d2) - 1; return d < .22 ? .3 * (1 - d / .22) * (1 - d / .22) : 0; }
+    const z = Math.sqrt(1 - d2);
+    const y1 = y * G.cl + z * G.sl, z1 = -y * G.sl + z * G.cl;
+    const wx = x * G.co + z1 * G.so, wz = -x * G.so + z1 * G.co, wy = y1;
+    const lat = Math.asin(wy), lon = Math.atan2(wx, wz);
+    const m = sstep(.28, .72, land(lon, lat));
+    const shade = 1 - Math.max(0, -.46 * x + .46 * y + .76 * z);
+    let L = (.02 + .13 * shade) * (1 - m) + (.5 + .42 * shade) * m;
+    const gl = lon / RAD / 30, gb = lat / RAD / 30;
+    if (m < .5 && (Math.abs(gl - Math.round(gl)) < .02 / Math.max(.2, Math.cos(lat)) || Math.abs(gb - Math.round(gb)) < .02)) L += .1;
+    L += .34 * Math.pow(1 - z, 4);
+    L *= 1 - .5 * G.rw;
+    if (G.rw > .01) {
+      let best = -1, bi = 0;
+      for (let i = 0; i < AN; i++) { const d = wx * AX[i] + wy * AY[i] + wz * AZ[i]; if (d > best) { best = d; bi = i; } }
+      const ang = Math.sqrt(Math.max(0, 2 - 2 * best));
+      if (ang < .024) L += (1 - L) * G.rw * (.7 + .3 * Math.sin(bi * .8 + T * 5));
+      const c = Math.sqrt(Math.max(0, 2 - 2 * Math.max(wx * VZ[0] + wy * VZ[1] + wz * VZ[2], wx * DX[0] + wy * DX[1] + wz * DX[2])));
+      const ph = (T * .45) % 1;
+      if (c < .03) L = L + (1 - L) * G.rw; else if (Math.abs(c - .03 - ph * .1) < .009) L += (1 - L) * G.rw * (1 - ph) * .85;
     }
-    x.putImageData(im, 0, 0);
+    return L;
+  }
+  function stepGlobe(dt, scene) {
+    const e = 1 - Math.exp(-dt * 2.6), route = scene === 1;
+    if (route) { let d = 69 * RAD - G.lon; d = ((d + PI) % TAU + TAU) % TAU - PI; G.lon += d * e; G.lat += (21 * RAD - G.lat) * e; }
+    else if (!G.drag) { G.lon += dt * .11; G.lat += (.3 - G.lat) * (1 - Math.exp(-dt * .6)); }
+    G.R += ((route ? 1.5 : .84) - G.R) * e; G.rw += ((route ? 1 : 0) - G.rw) * e;
+    G.sl = Math.sin(G.lat); G.cl = Math.cos(G.lat); G.so = Math.sin(G.lon); G.co = Math.cos(G.lon);
   }
 
-  function lumGrid(src, gw, gh, aspect) {
-    const a = aspect || gw / gh; let sw = src.width, sh = src.height;
-    if (sw / sh > a) sw = sh * a; else sh = sw / a;
-    const sx = (src.width - sw) / 2, sy = (src.height - sh) * .25;
-    const k = Math.max(1, Math.min(8, 1 << Math.floor(Math.log2(Math.max(1, sw / gw)))));
-    const c = mk(gw * k, gh * k), x = c.getContext('2d', { willReadFrequently: true });
-    x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
-    x.drawImage(src, sx, sy, sw, sh, 0, 0, c.width, c.height);
-    const d = x.getImageData(0, 0, c.width, c.height).data, out = new Float32Array(gw * gh);
-    for (let y = 0; y < gh; y++) for (let X = 0; X < gw; X++) {
-      let s = 0;
-      for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) { const p = ((y * k + j) * c.width + X * k + i) * 4; s += d[p] * .299 + d[p + 1] * .587 + d[p + 2] * .114; }
-      out[y * gw + X] = s / (k * k * 255);
-    }
+  /* ---- scene: the number on the open case file, filled with drifting noise ---- */
+  const MS = 160, N = { a: null, b: null, k: 1 };
+  function mask(text) {
+    const c = mk(MS, MS), x = c.getContext('2d', { willReadFrequently: true });
+    let fs = 120; x.font = `800 ${fs}px "Hanken Grotesk",Arial,sans-serif`;
+    const w = x.measureText(text).width; if (w > MS * .92) { fs *= MS * .92 / w; x.font = `800 ${fs}px "Hanken Grotesk",Arial,sans-serif`; }
+    x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(text, MS / 2, MS / 2 + fs * .04);
+    const d = x.getImageData(0, 0, MS, MS).data, out = new Float32Array(MS * MS);
+    for (let i = 0; i < MS * MS; i++) out[i] = d[i * 4 + 3] / 255;
     return out;
   }
-
-  /* stand-in face: head and shoulders, lit from the upper left */
-  function placeholder() {
-    const c = mk(320, 400), x = c.getContext('2d');
-    lin(x, 0, 0, 320, 400, .97, .62); x.fillRect(0, 0, 320, 400);
-    rad(x, 96, 90, 10, 230, 1, .72); x.globalAlpha = .7; x.fillRect(0, 0, 320, 400); x.globalAlpha = 1;
-    lin(x, 20, 300, 300, 400, .42, .04); ell(x, 160, 462, 176, 132);
-    lin(x, 124, 0, 198, 0, .7, .26); ell(x, 160, 300, 33, 62);
-    x.fillStyle = 'rgba(0,0,0,.42)'; ell(x, 166, 288, 36, 13);
-    x.fillStyle = G(.06); ell(x, 160, 150, 76, 73);
-    const g = x.createRadialGradient(128, 166, 6, 162, 200, 120);
-    g.addColorStop(0, G(.96)); g.addColorStop(.5, G(.7)); g.addColorStop(1, G(.24)); x.fillStyle = g; ell(x, 160, 198, 63, 84);
-    x.fillStyle = G(.06); ell(x, 166, 116, 71, 39, -.12);
-    x.fillStyle = 'rgba(0,0,0,.55)'; ell(x, 136, 193, 11, 4); ell(x, 187, 193, 11, 4);
-    x.fillStyle = 'rgba(0,0,0,.22)'; ell(x, 170, 222, 6, 17);
-    x.fillStyle = 'rgba(0,0,0,.42)'; ell(x, 163, 251, 17, 3.5);
-    return c;
+  const samp = (m, u, v) => { if (!m) return 0; const fx = (u * .5 + .5) * MS - .5, fy = (v * .5 + .5) * MS - .5, x0 = Math.floor(fx), y0 = Math.floor(fy);
+    if (x0 < 0 || y0 < 0 || x0 >= MS - 1 || y0 >= MS - 1) return 0; const tx = fx - x0, ty = fy - y0, i = y0 * MS + x0;
+    return (m[i] * (1 - tx) + m[i + 1] * tx) * (1 - ty) + (m[i + MS] * (1 - tx) + m[i + MS + 1] * tx) * ty; };
+  function number(u, v) {
+    const m = N.k >= 1 ? samp(N.b, u, v) : samp(N.a, u, v) * (1 - N.k) + samp(N.b, u, v) * N.k;
+    return m < .02 ? 0 : m * (.38 + .62 * fbm(u * 2.6 + 3, v * 2.6 + T * .32));
   }
-  let src = placeholder();
 
-  /* ---------- hero portrait: tonal dither, with an ASCII lens under the pointer ---------- */
-  const P = { cv: $('portrait'), box: $('pbox'), mode: 'dither', lens: null, ok: false };
-  function buildPortrait(animate) {
-    const bw = P.box.clientWidth, bh = P.box.clientHeight;
-    if (!bw || !bh) return;
-    const CELL = 3, gw = Math.floor(bw / CELL / 8) * 8, gh = Math.floor(bh / CELL / 8) * 8;
-    if (!gw || !gh) return;
-    const dpr = P.dpr = Math.min(window.devicePixelRatio || 1, 2), W = gw * CELL, H = gh * CELL;
-    P.cv.style.width = W + 'px'; P.cv.style.height = H + 'px';
-    P.cv.width = Math.round(W * dpr); P.cv.height = Math.round(H * dpr);
-    P.lv = []; let lum = lumGrid(src, gw, gh), w = gw, h = gh;
-    for (let s = 1; s <= 8; s *= 2) {
-      P.lv.push({ s, w, h, lum });
-      if (s < 8) {
-        const nw = w / 2, nh = h / 2, nl = new Float32Array(nw * nh);
-        for (let y = 0; y < nh; y++) for (let x = 0; x < nw; x++) { const i = y * 2 * w + x * 2; nl[y * nw + x] = (lum[i] + lum[i + 1] + lum[i + w] + lum[i + w + 1]) / 4; }
-        lum = nl; w = nw; h = nh;
+  /* ---- scene: a ball in play ---- */
+  const ring = (n, r, s) => Array.from({ length: n }, (_, i) => [Math.cos(i * TAU / n) * r, Math.sin(i * TAU / n) * r, s]);
+  const SPORTS = {
+    basketball: { r: .36, h: .74, per: 1.15, spin: 1.5, cap: 'basketball, in play.',
+      pat: (x, y) => Math.max(sstep(.075, .045, Math.abs(x)), sstep(.075, .045, Math.abs(y)), sstep(.075, .045, Math.abs(Math.hypot(x - 1.3, y) - 1)), sstep(.075, .045, Math.abs(Math.hypot(x + 1.3, y) - 1))) },
+    football: { r: .32, h: .6, per: 1.0, spin: -2.1, cap: 'football, in play.', dots: [[0, 0, .3], ...ring(5, .8, .27)] },
+    pickleball: { r: .18, h: 1.0, per: .8, spin: 2.8, cap: 'pickleball, in play.', dots: [[0, 0, .15], ...ring(6, .48, .13), ...ring(10, .82, .1)] }
+  };
+  const B = { s: SPORTS.basketball };
+  function ball(u, v) {
+    const s = B.s, FLOOR = .78, p = (T / s.per) % 1, hn = 4 * p * (1 - p), cy = FLOOR - s.r - s.h * hn;
+    const dx = u / s.r, dy = (v - cy) / s.r, d2 = dx * dx + dy * dy;
+    if (d2 < 1) {
+      const z = Math.sqrt(1 - d2), a = T * s.spin, ca = Math.cos(a), sa = Math.sin(a), px = dx * ca + dy * sa, py = -dx * sa + dy * ca;
+      let pat = 0;
+      if (s.pat) pat = s.pat(px, py); else for (const q of s.dots) pat = Math.max(pat, sstep(q[2], q[2] - .06, Math.hypot(px - q[0], py - q[1])));
+      const lit = Math.max(0, -.5 * dx - .6 * dy + .62 * z);
+      return Math.min(1, .2 + .5 * (1 - lit) + .5 * pat * (.5 + .5 * z)) * sstep(1, .9, d2) + .3 * (1 - sstep(1, .9, d2));
+    }
+    let L = 0;
+    const sx = u / (s.r * (1.3 - .55 * hn)), sy = (v - FLOOR - .035) / (s.r * .2), sd = sx * sx + sy * sy;
+    if (sd < 1) L = (1 - sd) * (.85 - .5 * hn);
+    if (v > FLOOR) { const dep = v - FLOOR, q = 1.1 / (dep + .1), xg = u / (dep * 1.5 + .22);
+      if (Math.abs(q - Math.round(q)) < .09 * q * q * .1 + .03 || Math.abs(xg - Math.round(xg)) < .03) L = Math.max(L, .2); }
+    if (Math.abs(v - FLOOR) < .012) L = Math.max(L, .5);
+    return L;
+  }
+
+  /* ---- scene: a record at 33 1/3 ---- */
+  function record(u, v) {
+    const r = Math.hypot(u, v);
+    if (r > .86) return r < .9 ? .25 : 0;
+    if (r < .028) return 0;
+    const th = Math.atan2(v, u), sp = th - T * 3.49;
+    if (r < .28) return r > .09 && Math.abs(Math.sin(sp)) < .13 ? .78 : .3 + .08 * Math.cos(sp * 3);
+    const hl = Math.pow(Math.max(0, Math.cos(2 * (th + .7))), 12);
+    return .9 - .62 * hl - .07 * Math.sin(r * 150) + .14 * (fbm(Math.cos(sp) * 2.5 + r * 8, Math.sin(sp) * 2.5) - .5);
+  }
+
+  /* ---- scene: a ripple going out ---- */
+  function ripple(u, v) {
+    const r = Math.hypot(u, v * 1.02);
+    return r < .045 ? 1 : Math.max(0, (.5 + .5 * Math.sin(r * 15 - T * 2.4)) * Math.exp(-r * 1.45) - .07);
+  }
+
+  const SCENES = [globe, globe, number, ball, record, ripple];
+  const S = { cv: $('stage'), box: $('sbox'), mode: 'ascii', from: 0, to: 0, k: 1, ok: false, seen: true };
+  function shade(u, v) {
+    let L = S.k >= 1 ? SCENES[S.to](u, v) : (() => { const a = SCENES[S.from](u, v), b = SCENES[S.to](u, v), s = S.k * S.k * (3 - 2 * S.k); return a + (b - a) * s; })();
+    return L;
+  }
+
+  /* glyphs are picked by shape, not just darkness: each cell is sampled at 2 x 3 points and
+     matched to the character whose ink sits in the same places. edges come out as / \ | _ ( ). */
+  const GLYPHS = " .`'\",:;-_~=+^/\\()<>*#%@";
+  let LUT = null;
+  function buildLUT() {
+    const cw = 24, ch = 48, c = mk(cw, ch), x = c.getContext('2d', { willReadFrequently: true }), vecs = [];
+    x.font = `500 ${cw / .6}px "IBM Plex Mono",ui-monospace,monospace`; x.textBaseline = 'middle'; x.textAlign = 'center'; x.fillStyle = '#000';
+    let max = 0;
+    for (const g of GLYPHS) {
+      x.clearRect(0, 0, cw, ch); x.fillText(g, cw / 2, ch / 2 + 2);
+      const d = x.getImageData(0, 0, cw, ch).data, v = [0, 0, 0, 0, 0, 0];
+      for (let py = 0; py < ch; py++) for (let px = 0; px < cw; px++) v[Math.floor(py / 16) * 2 + (px < 12 ? 0 : 1)] += d[(py * cw + px) * 4 + 3];
+      for (let i = 0; i < 6; i++) { v[i] /= 255 * 12 * 16; if (v[i] > max) max = v[i]; }
+      vecs.push(v);
+    }
+    vecs.forEach(v => { for (let i = 0; i < 6; i++) v[i] = Math.pow(v[i] / max, .8); });
+    LUT = new Uint8Array(15625);
+    const q = [0, 0, 0, 0, 0, 0];
+    for (let n = 0; n < 15625; n++) {
+      let m = n; for (let i = 0; i < 6; i++) { q[i] = (m % 5) / 4; m = (m - m % 5) / 5; }
+      let best = 0, bd = 1e9;
+      for (let g = 0; g < vecs.length; g++) { const v = vecs[g]; let d = 0; for (let i = 0; i < 6; i++) { const e = v[i] - q[i]; d += e * e; } if (d < bd) { bd = d; best = g; } }
+      LUT[n] = best;
+    }
+  }
+  function build() {
+    const W = S.box.clientWidth, H = S.box.clientHeight;
+    S.ok = false; if (!W || !H) return;
+    const dpr = S.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    S.W = W; S.H = H; S.cv.width = Math.round(W * dpr); S.cv.height = Math.round(H * dpr);
+    S.ctx = S.cv.getContext('2d');
+    S.ax = Math.max(1, W / H); S.ay = Math.max(1, H / W);
+    const cw = 5, ch = 10, font = `500 ${cw / .6 * dpr}px "IBM Plex Mono",ui-monospace,monospace`;
+    S.cols = Math.floor(W / cw); S.rows = Math.floor(H / ch);
+    S.ox = Math.round((W - S.cols * cw) / 2 * dpr); S.oy = Math.round((H - S.rows * ch) / 2 * dpr);
+    S.lw = S.cols * 2; S.lh = S.rows * 3; S.lb = new Float32Array(S.lw * S.lh);
+    buildLUT();
+    const aw = S.aw = cw * dpr, ah = S.ah = ch * dpr, at = S.atlas = mk(aw * GLYPHS.length, ah * 5), x = at.getContext('2d');
+    x.font = font; x.textBaseline = 'middle'; x.textAlign = 'center';
+    for (let t = 0; t < 5; t++) { x.fillStyle = HEX[t]; [...GLYPHS].forEach((g, i) => { if (g !== ' ') x.fillText(g, i * aw + aw / 2, t * ah + ah / 2 + dpr * .5); }); }
+    const dc = 3; S.gw = Math.ceil(W / dc); S.gh = Math.ceil(H / dc);
+    S.buf = mk(S.gw, S.gh); S.bctx = S.buf.getContext('2d'); S.img = S.bctx.createImageData(S.gw, S.gh); S.px = new Uint32Array(S.img.data.buffer);
+    S.ok = true;
+  }
+  function render() {
+    if (!S.ok) return;
+    const c = S.ctx, { ax, ay } = S;
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    if (S.mode === 'ascii') {
+      const { cols, rows, aw, ah, atlas, ox, oy, lw, lh, lb } = S;
+      for (let y = 0; y < lh; y++) { const v = ((y + .5) / lh * 2 - 1) * ay; for (let x = 0; x < lw; x++) lb[y * lw + x] = shade(((x + .5) / lw * 2 - 1) * ax, v); }
+      c.clearRect(0, 0, S.cv.width, S.cv.height);
+      for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+        const i = y * 3 * lw + x * 2, j = (hash(x, y) - .5) * .2;
+        let idx = 0, sum = 0, mul = 1;
+        for (let k = 0; k < 6; k++) { let L = lb[i + (k >> 1) * lw + (k & 1)]; sum += L; L = (L + j) * 4 + .5 | 0; idx += (L < 0 ? 0 : L > 4 ? 4 : L) * mul; mul *= 5; }
+        const g = LUT[idx]; if (!g) continue;
+        sum /= 6; const t = sum * 5.4 | 0;
+        c.drawImage(atlas, g * aw, (t > 4 ? 4 : t) * ah, aw, ah, ox + x * aw, oy + y * ah, aw, ah);
       }
+    } else {
+      const { gw, gh, px } = S;
+      for (let y = 0; y < gh; y++) { const v = ((y + .5) / gh * 2 - 1) * ay;
+        for (let x = 0; x < gw; x++) px[y * gw + x] = TONES[toneOf(shade(((x + .5) / gw * 2 - 1) * ax, v), x, y)]; }
+      S.bctx.putImageData(S.img, 0, 0);
+      c.clearRect(0, 0, S.cv.width, S.cv.height); c.imageSmoothingEnabled = false; c.drawImage(S.buf, 0, 0, S.cv.width, S.cv.height);
     }
-    P.buf = mk(gw, gh); P.bctx = P.buf.getContext('2d'); P.img = P.bctx.createImageData(gw, gh); P.px = new Uint32Array(P.img.data.buffer);
-    P.dither = mk(P.cv.width, P.cv.height);
-    const fs = 10, cw = 6, cols = Math.floor(W / cw), rows = Math.floor(H / fs), la = lumGrid(src, cols, rows, W / H);
-    P.ascii = mk(P.cv.width, P.cv.height);
-    const a = P.ascii.getContext('2d'); a.scale(dpr, dpr); a.font = `500 ${fs}px "IBM Plex Mono",ui-monospace,monospace`; a.textBaseline = 'top';
-    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
-      const d = 1 - la[y * cols + x], ch = RAMP[Math.min(9, Math.floor(d * 10))];
-      if (ch !== ' ') { a.fillStyle = HEX[d > .7 ? 4 : d > .42 ? 3 : 2]; a.fillText(ch, x * cw, y * fs); }
-    }
-    P.ok = true;
-    clearInterval(P.timer);
-    let li = animate && !calm.matches ? 3 : 0;
-    level(li);
-    if (li) P.timer = setInterval(() => { level(--li); if (!li) clearInterval(P.timer); }, 230);
+    if (S.to === 1 && G.rw > .7 && S.k >= 1) [[VZ, 'vizag', 1], [DX, 'dubai', -1]].forEach(([w, name, side]) => {
+      const x1 = w[0] * G.co - w[2] * G.so, z1 = w[0] * G.so + w[2] * G.co, y2 = w[1] * G.cl - z1 * G.sl;
+      const px = (x1 * G.R / ax * .5 + .5) * S.W, py = (-y2 * G.R / ay * .5 + .5) * S.H, d = S.dpr;
+      c.font = `500 ${11 * d}px "IBM Plex Mono",ui-monospace,monospace`; c.textBaseline = 'middle'; c.textAlign = side > 0 ? 'left' : 'right';
+      const tw = c.measureText(name).width, tx = (px + side * 14) * d;
+      c.fillStyle = PAPER; c.fillRect(side > 0 ? tx - 4 * d : tx - tw - 4 * d, (py - 9) * d, tw + 8 * d, 18 * d);
+      c.fillStyle = INK; c.fillText(name, tx, py * d);
+    });
   }
-  function level(li) {
-    const L = P.lv[li], gw = P.lv[0].w, px = P.px, s = L.s;
-    px.fill(0);
-    for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
-      const t = TONES[tone(L.lum[y * L.w + x], x, y)];
-      if (t) for (let yy = 0; yy < s; yy++) for (let xx = 0; xx < s; xx++) px[(y * s + yy) * gw + x * s + xx] = t;
-    }
-    P.bctx.putImageData(P.img, 0, 0);
-    const d = P.dither.getContext('2d');
-    d.clearRect(0, 0, P.dither.width, P.dither.height); d.imageSmoothingEnabled = false;
-    d.drawImage(P.buf, 0, 0, P.dither.width, P.dither.height);
-    paint();
+  let raf = 0, last = 0;
+  function frame(now) {
+    raf = 0;
+    const t = now / 1000, dt = Math.min(.05, last ? t - last : .016); last = t; T = t;
+    if (S.k < 1) S.k = Math.min(1, S.k + dt / .65);
+    if (N.k < 1) N.k = Math.min(1, N.k + dt / .45);
+    stepGlobe(dt, S.to);
+    render();
+    if (!calm.matches && S.seen && !document.hidden) raf = requestAnimationFrame(frame);
   }
-  function paint() {
-    if (!P.ok) return;
-    const c = P.cv.getContext('2d'), base = P.mode === 'dither' ? P.dither : P.ascii, other = P.mode === 'dither' ? P.ascii : P.dither;
-    c.clearRect(0, 0, P.cv.width, P.cv.height); c.drawImage(base, 0, 0);
-    if (P.lens) {
-      const x = P.lens.x * P.dpr, y = P.lens.y * P.dpr, r = 66 * P.dpr;
-      c.save(); c.beginPath(); c.arc(x, y, r, 0, 7); c.clip();
-      c.fillStyle = PAPER; c.fillRect(0, 0, P.cv.width, P.cv.height); c.drawImage(other, 0, 0); c.restore();
-      c.beginPath(); c.arc(x, y, r, 0, 7); c.strokeStyle = HEX[4]; c.lineWidth = P.dpr; c.stroke();
-    }
+  const kick = () => { if (calm.matches) { S.k = 1; N.k = 1; T = 2.3; for (let i = 0; i < 60; i++) stepGlobe(.05, S.to); render(); } else if (!raf) { last = 0; raf = requestAnimationFrame(frame); } };
+  function setScene(i) {
+    if (i === S.to) return;
+    const sameGlobe = i < 2 && S.to < 2;
+    S.from = S.to; S.to = i; S.k = sameGlobe ? 1 : 0;
+    $('figNo').textContent = 'fig. 0' + i; caption(); kick();
   }
-  const lensAt = e => { const r = P.cv.getBoundingClientRect(); P.lens = { x: e.clientX - r.left, y: e.clientY - r.top }; paint(); };
-  P.cv.addEventListener('pointermove', lensAt); P.cv.addEventListener('pointerdown', lensAt);
-  ['pointerleave', 'pointercancel', 'pointerup'].forEach(t => P.cv.addEventListener(t, e => { if (t !== 'pointerup' || e.pointerType !== 'mouse') { P.lens = null; paint(); } }));
-  const setMode = m => { P.mode = m; $('mDither').setAttribute('aria-pressed', m === 'dither'); $('mAscii').setAttribute('aria-pressed', m === 'ascii'); paint(); };
-  $('mDither').onclick = () => setMode('dither'); $('mAscii').onclick = () => setMode('ascii');
+  const secs = [...document.querySelectorAll('.sec')];
+  function caption() { $('figCap').textContent = S.to === 2 ? N.title + '.' : S.to === 3 ? B.s.cap : secs[S.to].dataset.fig; }
+  const setMode = m => { S.mode = m; $('mAscii').setAttribute('aria-pressed', m === 'ascii'); $('mDither').setAttribute('aria-pressed', m === 'dither'); kick(); };
+  $('mAscii').onclick = () => setMode('ascii'); $('mDither').onclick = () => setMode('dither');
+  S.box.addEventListener('pointerdown', e => { if (S.to === 0) { G.drag = { x: e.clientX, y: e.clientY }; S.box.setPointerCapture(e.pointerId); S.box.style.cursor = 'grabbing'; } });
+  S.box.addEventListener('pointermove', e => { if (!G.drag) return; G.lon -= (e.clientX - G.drag.x) / S.W * 2 * S.ax / G.R; G.lat = Math.max(-1.2, Math.min(1.2, G.lat + (e.clientY - G.drag.y) / S.H * 2 * S.ay / G.R)); G.drag = { x: e.clientX, y: e.clientY }; kick(); });
+  ['pointerup', 'pointercancel'].forEach(t => S.box.addEventListener(t, () => { G.drag = null; S.box.style.cursor = ''; }));
 
-  /* ---------- ASCII helpers ---------- */
-  function fitPre(pre) {
-    const cols = +pre.dataset.cols, w = pre.clientWidth;
-    if (w) pre.style.fontSize = Math.min(16, w / (cols * .6)).toFixed(2) + 'px';
-  }
-  const runs = cells => { let out = '', cur = null, buf = ''; const flush = () => { if (buf) out += cur ? `<span class="${cur}">${buf}</span>` : buf; buf = ''; };
-    cells.forEach(([ch, cls]) => { if (cls !== cur) { flush(); cur = cls; } buf += ch; }); flush(); return out; };
-
-  /* the same portrait as selectable text */
-  function typeMe() {
-    /* tighter crop than the hero, so the face gets the characters */
-    const a = Math.min(src.width / 4, src.height / 5), fw = a * 4 * .7, fh = a * 5 * .7, face = mk(Math.round(fw), Math.round(fh));
-    face.getContext('2d').drawImage(src, (src.width - a * 4) / 2 + a * 4 * .16, (src.height - a * 5) * .25 + a * 5 * .03, fw, fh, 0, 0, face.width, face.height);
-    const cols = 80, rows = 60, l = lumGrid(face, cols, rows, 4 / 5), lines = [];
-    for (let y = 0; y < rows; y++) { const row = [];
-      for (let x = 0; x < cols; x++) { const d = Math.pow(1 - l[y * cols + x], .78); row.push([RAMP[Math.min(9, Math.floor(d * 10))], d > .74 ? 't3' : d > .46 ? '' : 't2']); }
-      lines.push(runs(row)); }
-    $('me').innerHTML = lines.join('\n');
-  }
-
-  /* ---------- route map: real coastline, rasterised at 0.75° per column ---------- */
-  const LAND = ["########################################################################","########################################################################","########################################################################","############### ########################################################","##############   #######################################################","###############     ####################################################","################ #        ##############################################","##################    ###              #################################"," ###########################             ###############################"," ############################             ########################      ","  #########################                   ###################       ","    ######################                     ###############          ","#     #################                        #############            ","##    #############                            ###########              ","####   ########                                 ########                ","###### ###                                       #######                ","#######                                           ######                ","######## ########                                  ####                 ","#################                                  ###  #               ","################                                        ##              ","###############                                         ##              ","##############                                                          "];
-  const VZ = { lat: 17.68, lon: 83.21 }, DX = { lat: 25.20, lon: 55.27 };
-  const cell = p => [Math.round((p.lon - 38) / .75), Math.round((35 - p.lat) / 1.4 - .5)];
-  let route = [];
-  function drawMap() {
-    const R = LAND.length, C = 72, at = (x, y) => y >= 0 && y < R && x >= 0 && x < C && LAND[y][x] === '#';
-    const g = LAND.map((row, y) => [...row].map((ch, x) => ch !== '#' ? [' ', null]
-      : (at(x - 1, y) && at(x + 1, y) && (y === 0 || at(x, y - 1)) && (y === R - 1 || at(x, y + 1))) ? ['.', null] : [':', 'c']));
-    const [vx, vy] = cell(VZ), [dx, dy] = cell(DX);
-    route = [];
-    for (let t = 0; t <= 1.0001; t += .01) {
-      const x = Math.round((1 - t) * (1 - t) * vx + 2 * t * (1 - t) * ((vx + dx) / 2) + t * t * dx);
-      const y = Math.round((1 - t) * (1 - t) * vy + 2 * t * (1 - t) * (Math.min(vy, dy) - 2.5) + t * t * dy);
-      if (!route.some(r => r[0] === x && r[1] === y)) route.push([x, y]);
-    }
-    route.forEach(([x, y], i) => { g[y][x] = ['-', 'r" data-i="' + i]; });
-    const label = (x, y, s, cls = 'p') => [...s].forEach((ch, i) => { if (g[y] && g[y][x + i]) g[y][x + i] = [ch, cls]; });
-    g[vy][vx] = ['O', 'p']; g[dy][dx] = ['O', 'p'];
-    label(vx + 2, vy, 'vizag'); label(dx + 2, dy, 'dubai');
-    label(27, 16, 'arabian sea', 's');
-    $('map').innerHTML = g.map(row => row.some(c => c[1] && c[1][0] === 'r')
-      ? row.map(([ch, cls]) => cls ? `<span class="${cls}">${ch}</span>` : ch).join('') : runs(row)).join('\n');
-    const R2 = Math.PI / 180, a = Math.sin((DX.lat - VZ.lat) * R2 / 2) ** 2 + Math.cos(VZ.lat * R2) * Math.cos(DX.lat * R2) * Math.sin((DX.lon - VZ.lon) * R2 / 2) ** 2;
-    $('dist').textContent = Math.round(6371 * 2 * Math.asin(Math.sqrt(a)) / 10) * 10 + ' km';
-  }
-  let fly = -30;
-  function tickRoute() {
-    if (calm.matches || document.hidden) return;
-    const spans = $('map').querySelectorAll('.r');
-    spans.forEach(s => s.classList.remove('f'));
-    fly++; if (fly > spans.length + 12) fly = -20;
-    const s = $('map').querySelector(`.r[data-i="${fly}"]`); if (s) s.classList.add('f');
-  }
-
-  /* ---------- courts, plotted on a character grid ---------- */
-  function plot(w, h) {
-    const g = Array.from({ length: h }, () => Array(w).fill(' '));
-    const set = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (y >= 0 && y < h && x >= 0 && x < w) g[y][x] = c; };
-    const o = {
-      set, h(x0, x1, y, c = '-') { for (let x = x0; x <= x1; x++) set(x, y, c); return o; },
-      v(x, y0, y1, c = '|') { for (let y = y0; y <= y1; y++) set(x, y, c); return o; },
-      rect(x0, y0, x1, y1) { o.h(x0, x1, y0).h(x0, x1, y1).v(x0, y0 + 1, y1 - 1).v(x1, y0 + 1, y1 - 1); [[x0, y0], [x1, y0], [x0, y1], [x1, y1]].forEach(p => set(p[0], p[1], '+')); return o; },
-      arc(cx, cy, rx, ry, a0, a1, c = ':') { for (let a = a0; a <= a1; a += .03) set(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry, c); return o; },
-      out: () => g.map(r => '  ' + r.join('') + '  ').join('\n')
-    };
-    return o;
-  }
-  const PI = Math.PI, COURTS = { basketball: 'basketball, half court', football: 'football, full pitch', pickleball: 'pickleball, 20 × 44 ft' };
-  function court(name) {
-    const p = name === 'basketball' ? plot(49, 17).rect(0, 0, 48, 16).arc(24, 0, 6, 3, .1, PI - .1).arc(24, 14, 22, 11, PI, 2 * PI).v(2, 14, 15, ':').v(46, 14, 15, ':').rect(16, 8, 32, 16).arc(24, 8, 6, 3, PI + .1, 2 * PI - .1).h(21, 27, 15, '=')
-      : name === 'football' ? plot(49, 17).rect(0, 0, 48, 16).v(24, 1, 15).arc(24, 8, 7, 3.5, 0, 2 * PI).rect(0, 3, 8, 13).rect(40, 3, 48, 13).rect(0, 6, 3, 10).rect(45, 6, 48, 10)
-      : plot(49, 17).rect(2, 3, 46, 13).v(17, 4, 12).v(31, 4, 12).h(3, 16, 8).h(32, 45, 8).v(24, 2, 14, '#');
-    if (name === 'basketball') p.set(24, 14, 'O');
-    if (name === 'football') { p.set(24, 8, 'O'); p.set(6, 8, 'o'); p.set(42, 8, 'o'); }
-    $('court').textContent = p.out();
-    $('courtCap').textContent = COURTS[name];
-    document.querySelectorAll('#rows button').forEach(b => b.setAttribute('aria-pressed', b.dataset.court === name));
-  }
-  document.querySelectorAll('#rows button').forEach(b => { b.onclick = () => court(b.dataset.court); });
-
-  /* ---------- work: six files, numbers drawn in dither ---------- */
+  /* ================= work: six files ================= */
   const FILES = [
     ['14', 'bugs, logged before delivery', 'breaking things on purpose', 'three products on their way to clients: Luz, ZOE and SnapMoney.', 'structured QA passes. every bug written up with steps to reproduce and detailed feedback.', '14 reproducible bugs caught before a client ever saw them.'],
     ['1st', 'rollout, from a blank page', 'lending platform spec', 'a fintech client needed one loan paid out across several banks.', 'co-authored the PRD. gathered requirements from the client, then worked alongside the dev team and senior stakeholders.', 'the platform reached its first product rollout.'],
     ['0', 'training, outside help', 'HR system from zero', 'the company needed an HR system.', 'designed and deployed a full HRMS on SharePoint, with an employee portal and department-wise communication groups.', 'a working internal system, built with no prior training and no external support.'],
-    ['5,000+', 'qualified leads', 'the lead machine', 'a compliance service for US-registered small businesses, under the Corporate Transparency Act.', 'led lead generation across the life of the campaign.', '5,000+ qualified leads and 3M+ Google Ads impressions.'],
+    ['5k+', 'qualified leads (5,000+)', 'the lead machine', 'a compliance service for US-registered small businesses, under the Corporate Transparency Act.', 'led lead generation across the life of the campaign.', '5,000+ qualified leads and 3M+ Google Ads impressions.'],
     ['17', 'award wins', 'the awards run', 'awards and press do not apply for themselves.', 'found and shortlisted national and international opportunities, kept a live submission tracker, proofread every application.', '17 wins, including 2 Gold Stevie APAC and Entrepreneur Startup Awards. 11 media features, Fortune among them.'],
     ['CEO', 'direct line', 'payroll, end to end', 'people need to be paid, correctly, every month.', 'timesheet oversight, salary slips and monthly bank statement reconciliation.', 'supported the CEO directly on financial compliance and day-to-day HR admin.']
   ];
-  function numeral(text) {
-    const cv = $('num'), w = cv.width, h = cv.height, x = cv.getContext('2d');
-    x.clearRect(0, 0, w, h);
-    let fs = 50; x.font = `800 ${fs}px "Hanken Grotesk",Arial,sans-serif`;
-    const mw = x.measureText(text).width; if (mw > w - 4) { fs = fs * (w - 4) / mw; x.font = `800 ${fs}px "Hanken Grotesk",Arial,sans-serif`; }
-    lin(x, 0, 4, 0, h - 2, .62, 0); x.textBaseline = 'alphabetic'; x.fillText(text, 0, h - 5);
-    tonal(cv);
-  }
-  function openFile(i) {
-    const f = FILES[i];
-    numeral(f[0]); $('pUnit').textContent = f[1]; $('pTitle').textContent = f[2]; $('pA').textContent = f[3]; $('pB').textContent = f[4]; $('pC').textContent = f[5];
+  let fileIdx = 0;
+  function openFile(i, quiet) {
+    const f = FILES[i]; fileIdx = i;
+    N.a = N.b; N.b = mask(f[0]); N.k = N.a && !quiet ? 0 : 1; N.title = f[2];
+    $('pNum').textContent = f[0]; $('pUnit').textContent = f[1]; $('pTitle').textContent = f[2]; $('pA').textContent = f[3]; $('pB').textContent = f[4]; $('pC').textContent = f[5];
     [...$('tabs').children].forEach((b, k) => { b.setAttribute('aria-selected', k === i); b.tabIndex = k === i ? 0 : -1; });
+    caption(); kick();
   }
   FILES.forEach((f, i) => {
     const b = document.createElement('button');
@@ -576,21 +566,36 @@ const PORTRAIT_SRC = 'portrait.jpg';
     b.onkeydown = e => { const d = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0; if (d) { e.preventDefault(); const n = (i + d + FILES.length) % FILES.length; openFile(n); $('tabs').children[n].focus(); } };
     $('tabs').appendChild(b);
   });
+  document.querySelectorAll('#rows button').forEach(b => { b.onclick = () => {
+    B.s = SPORTS[b.dataset.sport];
+    document.querySelectorAll('#rows button').forEach(o => o.setAttribute('aria-pressed', o === b));
+    caption(); kick();
+  }; });
 
-  /* ---------- stamps and contact sheet: small greyscale scenes, then dithered ---------- */
+  /* ================= stamps and contact sheet: small greyscale scenes, dithered once ================= */
+  const Gy = v => { v = Math.round(v * 255); return `rgb(${v},${v},${v})`; };
+  const ell = (x, cx, cy, rx, ry, rot) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot || 0, 0, 7); x.fill(); };
+  const lin = (x, x0, y0, x1, y1, a, b) => { const g = x.createLinearGradient(x0, y0, x1, y1); g.addColorStop(0, Gy(a)); g.addColorStop(1, Gy(b)); x.fillStyle = g; };
+  const rad = (x, cx, cy, r0, r1, a, b) => { const g = x.createRadialGradient(cx, cy, r0, cx, cy, r1); g.addColorStop(0, Gy(a)); g.addColorStop(1, Gy(b)); x.fillStyle = g; };
+  const poly = (x, pts) => { x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.fill(); };
+  function tonal(cv) {
+    const w = cv.width, h = cv.height, x = cv.getContext('2d'), im = x.getImageData(0, 0, w, h), d = im.data, px = new Uint32Array(d.buffer);
+    for (let y = 0; y < h; y++) for (let X = 0; X < w; X++) { const i = y * w + X, p = i * 4; px[i] = TONES[toneOf(1 - (d[p] * .299 + d[p + 1] * .587 + d[p + 2] * .114) / 255, X, y)]; }
+    x.putImageData(im, 0, 0);
+  }
   const STAMPS = [
     ['sport', x => { lin(x, 0, 0, 0, 60, .97, .72); x.fillRect(0, 0, 48, 60); lin(x, 0, 42, 0, 60, .5, .3); x.fillRect(0, 42, 48, 18);
       x.fillStyle = 'rgba(0,0,0,.4)'; ell(x, 26, 45, 13, 3); rad(x, 19, 22, 1, 20, .92, .1); ell(x, 24, 28, 14, 14);
-      x.strokeStyle = G(.02); x.lineWidth = 1; x.beginPath(); x.moveTo(10, 28); x.lineTo(38, 28); x.moveTo(24, 14); x.lineTo(24, 42); x.stroke(); x.beginPath(); x.arc(8, 28, 9, -1, 1); x.stroke(); x.beginPath(); x.arc(40, 28, 9, 2.14, 4.14); x.stroke(); }],
-    ['music', x => { lin(x, 0, 0, 48, 60, .96, .78); x.fillRect(0, 0, 48, 60); x.fillStyle = G(.05); ell(x, 24, 30, 20, 20);
-      x.strokeStyle = G(.34); x.lineWidth = 1; [16, 13, 10].forEach(r => { x.beginPath(); x.arc(24, 30, r, 0, 7); x.stroke(); });
-      x.fillStyle = 'rgba(255,255,255,.3)'; poly(x, [[24, 30], [40, 14], [44, 22]]); poly(x, [[24, 30], [8, 46], [4, 38]]); x.fillStyle = G(.72); ell(x, 24, 30, 6, 6); x.fillStyle = G(.05); ell(x, 24, 30, 1, 1); }],
-    ['photography', x => { lin(x, 0, 0, 0, 60, .94, .8); x.fillRect(0, 0, 48, 60); x.fillStyle = G(.08); ell(x, 24, 30, 20, 20); rad(x, 24, 30, 6, 18, .25, .5); ell(x, 24, 30, 17, 17);
-      x.fillStyle = G(.06); ell(x, 24, 30, 12, 12); x.fillStyle = G(.62); x.beginPath(); for (let i = 0; i < 6; i++) x.lineTo(24 + Math.cos(i * 1.047) * 8, 30 + Math.sin(i * 1.047) * 8); x.fill(); x.fillStyle = G(1); ell(x, 19, 24, 3, 2, -.6); }],
-    ['avant-garde', x => { x.fillStyle = G(.97); x.fillRect(0, 0, 48, 60); rad(x, 14, 18, 2, 18, .55, .2); ell(x, 18, 24, 14, 14);
-      x.save(); x.translate(30, 38); x.rotate(.5); x.fillStyle = G(.03); x.fillRect(-11, -9, 22, 18); x.restore(); x.fillStyle = G(.55); x.fillRect(34, 8, 8, 8); x.fillStyle = G(.1); x.save(); x.rotate(-.3); x.fillRect(-10, 52, 50, 2); x.restore(); }],
-    ['philately', x => { lin(x, 0, 0, 48, 60, .78, .55); x.fillRect(0, 0, 48, 60); x.fillStyle = G(1); x.fillRect(10, 11, 28, 38); x.strokeStyle = G(.15); x.lineWidth = 1; x.strokeRect(12.5, 13.5, 23, 33);
-      lin(x, 0, 16, 0, 46, .7, .92); x.fillRect(14, 15, 20, 30); x.fillStyle = G(.12); ell(x, 24, 27, 5, 6); ell(x, 24, 45, 10, 9); x.fillStyle = G(1); x.fillRect(10, 47, 28, 2); }],
+      x.strokeStyle = Gy(.02); x.lineWidth = 1; x.beginPath(); x.moveTo(10, 28); x.lineTo(38, 28); x.moveTo(24, 14); x.lineTo(24, 42); x.stroke(); x.beginPath(); x.arc(8, 28, 9, -1, 1); x.stroke(); x.beginPath(); x.arc(40, 28, 9, 2.14, 4.14); x.stroke(); }],
+    ['music', x => { lin(x, 0, 0, 48, 60, .96, .78); x.fillRect(0, 0, 48, 60); x.fillStyle = Gy(.05); ell(x, 24, 30, 20, 20);
+      x.strokeStyle = Gy(.34); x.lineWidth = 1; [16, 13, 10].forEach(r => { x.beginPath(); x.arc(24, 30, r, 0, 7); x.stroke(); });
+      x.fillStyle = 'rgba(255,255,255,.3)'; poly(x, [[24, 30], [40, 14], [44, 22]]); poly(x, [[24, 30], [8, 46], [4, 38]]); x.fillStyle = Gy(.72); ell(x, 24, 30, 6, 6); x.fillStyle = Gy(.05); ell(x, 24, 30, 1, 1); }],
+    ['photography', x => { lin(x, 0, 0, 0, 60, .94, .8); x.fillRect(0, 0, 48, 60); x.fillStyle = Gy(.08); ell(x, 24, 30, 20, 20); rad(x, 24, 30, 6, 18, .25, .5); ell(x, 24, 30, 17, 17);
+      x.fillStyle = Gy(.06); ell(x, 24, 30, 12, 12); x.fillStyle = Gy(.62); x.beginPath(); for (let i = 0; i < 6; i++) x.lineTo(24 + Math.cos(i * 1.047) * 8, 30 + Math.sin(i * 1.047) * 8); x.fill(); x.fillStyle = Gy(1); ell(x, 19, 24, 3, 2, -.6); }],
+    ['avant-garde', x => { x.fillStyle = Gy(.97); x.fillRect(0, 0, 48, 60); rad(x, 14, 18, 2, 18, .55, .2); ell(x, 18, 24, 14, 14);
+      x.save(); x.translate(30, 38); x.rotate(.5); x.fillStyle = Gy(.03); x.fillRect(-11, -9, 22, 18); x.restore(); x.fillStyle = Gy(.55); x.fillRect(34, 8, 8, 8); x.fillStyle = Gy(.1); x.save(); x.rotate(-.3); x.fillRect(-10, 52, 50, 2); x.restore(); }],
+    ['philately', x => { lin(x, 0, 0, 48, 60, .78, .55); x.fillRect(0, 0, 48, 60); x.fillStyle = Gy(1); x.fillRect(10, 11, 28, 38); x.strokeStyle = Gy(.15); x.lineWidth = 1; x.strokeRect(12.5, 13.5, 23, 33);
+      lin(x, 0, 16, 0, 46, .7, .92); x.fillRect(14, 15, 20, 30); x.fillStyle = Gy(.12); ell(x, 24, 27, 5, 6); ell(x, 24, 45, 10, 9); x.fillStyle = Gy(1); x.fillRect(10, 47, 28, 2); }],
     ['digital art', x => { lin(x, 0, 0, 48, 0, 1, 0); x.fillRect(0, 0, 48, 60); rad(x, 19, 24, 1, 22, 1, .05); ell(x, 24, 30, 15, 15); x.fillStyle = 'rgba(0,0,0,.35)'; ell(x, 26, 49, 13, 3); }]
   ];
   STAMPS.forEach(([name, draw], i) => {
@@ -600,52 +605,39 @@ const PORTRAIT_SRC = 'portrait.jpg';
     const s = document.createElement('span'); s.innerHTML = `<b style="font-weight:500">${name}</b><span>${i + 1}/6</span>`;
     d.append(c, s); $('stamps').appendChild(d);
   });
-  const FRAMES = [
-    x => { lin(x, 0, 0, 0, 30, .7, .93); x.fillRect(0, 0, 72, 30); x.fillStyle = G(1); ell(x, 50, 20, 8, 8); lin(x, 0, 30, 0, 48, .32, .08); x.fillRect(0, 30, 72, 18); x.fillStyle = 'rgba(255,255,255,.5)'; [[44, 33, 12], [47, 37, 7], [42, 42, 14]].forEach(r => x.fillRect(r[0], r[1], r[2], 1)); },
-    x => { lin(x, 0, 0, 0, 48, .98, .74); x.fillRect(0, 0, 72, 48); [[4, 26, 9, .3], [15, 18, 7, .18], [24, 30, 10, .4], [44, 22, 8, .22], [54, 28, 12, .34]].forEach(t => { x.fillStyle = G(t[3]); x.fillRect(t[0], t[1], t[2], 48 - t[1]); }); x.fillStyle = G(.05); poly(x, [[36, 2], [39, 48], [33, 48]]); },
-    x => { lin(x, 0, 0, 72, 48, .9, .62); x.fillRect(0, 0, 72, 48); x.strokeStyle = G(.1); x.lineWidth = 1; x.strokeRect(6.5, 6.5, 59, 60); x.strokeRect(24.5, 22.5, 23, 40); x.beginPath(); x.arc(36, 22, 11, PI, 0); x.stroke(); x.fillStyle = 'rgba(0,0,0,.45)'; poly(x, [[0, 48], [30, 30], [44, 48]]); },
-    x => { x.fillStyle = G(.95); x.fillRect(0, 0, 72, 48); for (let i = -2; i < 8; i++) { lin(x, i * 12, 0, i * 12 + 9, 0, .08, .5); poly(x, [[i * 12, 48], [i * 12 + 20, 0], [i * 12 + 27, 0], [i * 12 + 7, 48]]); } }
-  ];
-  FRAMES.forEach((draw, i) => {
+  [ x => { lin(x, 0, 0, 0, 30, .7, .93); x.fillRect(0, 0, 72, 30); x.fillStyle = Gy(1); ell(x, 50, 20, 8, 8); lin(x, 0, 30, 0, 48, .32, .08); x.fillRect(0, 30, 72, 18); x.fillStyle = 'rgba(255,255,255,.5)'; [[44, 33, 12], [47, 37, 7], [42, 42, 14]].forEach(r => x.fillRect(r[0], r[1], r[2], 1)); },
+    x => { lin(x, 0, 0, 0, 48, .98, .74); x.fillRect(0, 0, 72, 48); [[4, 26, 9, .3], [15, 18, 7, .18], [24, 30, 10, .4], [44, 22, 8, .22], [54, 28, 12, .34]].forEach(t => { x.fillStyle = Gy(t[3]); x.fillRect(t[0], t[1], t[2], 48 - t[1]); }); x.fillStyle = Gy(.05); poly(x, [[36, 2], [39, 48], [33, 48]]); },
+    x => { lin(x, 0, 0, 72, 48, .9, .62); x.fillRect(0, 0, 72, 48); x.strokeStyle = Gy(.1); x.lineWidth = 1; x.strokeRect(6.5, 6.5, 59, 60); x.strokeRect(24.5, 22.5, 23, 40); x.beginPath(); x.arc(36, 22, 11, PI, 0); x.stroke(); x.fillStyle = 'rgba(0,0,0,.45)'; poly(x, [[0, 48], [30, 30], [44, 48]]); },
+    x => { x.fillStyle = Gy(.95); x.fillRect(0, 0, 72, 48); for (let i = -2; i < 8; i++) { lin(x, i * 12, 0, i * 12 + 9, 0, .08, .5); poly(x, [[i * 12, 48], [i * 12 + 20, 0], [i * 12 + 27, 0], [i * 12 + 7, 48]]); } }
+  ].forEach((draw, i) => {
     const f = document.createElement('figure'), c = mk(72, 48); c.setAttribute('aria-hidden', 'true'); draw(c.getContext('2d')); tonal(c);
     const cap = document.createElement('figcaption'); cap.textContent = String(i + 1).padStart(2, '0') + (i % 2 ? 'A' : '');
     f.append(c, cap); $('film').appendChild(f);
   });
 
-  /* ---------- small live things: meter, clocks, progress ---------- */
-  let mt = 0;
-  function meter() {
-    const n = 24, hts = Array.from({ length: n }, (_, i) => 1 + Math.round((Math.sin(i * .9 + mt) * .5 + .5) * 2 + (Math.sin(i * .37 - mt * 1.7) * .5 + .5) * 2));
-    $('meter').textContent = [5, 4, 3, 2, 1].map(r => hts.map(v => v >= r ? '#' : ' ').join(' ')).join('\n');
-    mt += .35;
-  }
+  /* ================= clocks, progress, scene by scroll ================= */
   const hhmm = z => new Intl.DateTimeFormat('en-GB', { timeZone: z, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date());
   function clocks() { try { const d = hhmm('Asia/Dubai'); $('barClock').textContent = d; $('ckD').textContent = d; $('ckV').textContent = hhmm('Asia/Kolkata'); } catch (e) {} }
-  const secs = [...document.querySelectorAll('.sec')], navA = [...$('nav').children];
-  function progress() {
+  const navA = [...$('nav').children];
+  function onScroll() {
     const max = document.documentElement.scrollHeight - innerHeight, p = max > 0 ? Math.min(1, Math.max(0, scrollY / max)) : 0, n = Math.round(p * 12);
     $('prog').textContent = '[' + '#'.repeat(n) + '.'.repeat(12 - n) + '] ' + String(Math.round(p * 100)).padStart(3, '0') + '%';
-    let cur = secs[0].id; secs.forEach(s => { if (s.getBoundingClientRect().top < innerHeight * .4) cur = s.id; });
-    navA.forEach(a => a.getAttribute('href') === '#' + cur ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current'));
+    const line = S.box.getBoundingClientRect().bottom < innerHeight * .5 ? S.box.getBoundingClientRect().bottom + (innerHeight - S.box.getBoundingClientRect().bottom) * .45 : innerHeight * .5;
+    let cur = 0; secs.forEach((s, i) => { if (s.getBoundingClientRect().top < line) cur = i; });
+    if (p > .995) cur = secs.length - 1;
+    navA.forEach(a => a.getAttribute('href') === '#' + secs[cur].id ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current'));
+    setScene(cur);
   }
 
-  /* ---------- start ---------- */
-  const pres = [...document.querySelectorAll('pre[data-cols]')];
-  function layout(animate) { pres.forEach(fitPre); buildPortrait(animate); }
-  drawMap(); court('basketball'); typeMe(); meter(); clocks(); progress(); layout(false);
+  openFile(0, true); clocks(); build(); onScroll(); kick();
   const fonts = document.fonts && document.fonts.load ? Promise.all([document.fonts.load('500 10px "IBM Plex Mono"'), document.fonts.load('800 50px "Hanken Grotesk"')]) : Promise.resolve();
-  Promise.race([fonts, new Promise(r => setTimeout(r, 1800))]).catch(() => {}).then(() => { openFile(0); layout(true); });
-  openFile(0);
-  let lw = innerWidth;
-  addEventListener('resize', () => { progress(); if (innerWidth !== lw) { lw = innerWidth; layout(false); } });
-  addEventListener('scroll', progress, { passive: true });
-  setInterval(clocks, 15000); setInterval(tickRoute, 110);
-  if (!calm.matches) setInterval(() => { if (!document.hidden) meter(); }, 420);
-
-  if (PORTRAIT_SRC) {
-    const im = new Image(); im.crossOrigin = 'anonymous';
-    im.onload = () => { try { const c = mk(im.naturalWidth, im.naturalHeight); c.getContext('2d').drawImage(im, 0, 0); c.getContext('2d').getImageData(0, 0, 1, 1); src = c; typeMe(); buildPortrait(true); } catch (e) {} };
-    im.src = PORTRAIT_SRC;
-  }
+  Promise.race([fonts, new Promise(r => setTimeout(r, 1800))]).catch(() => {}).then(() => { openFile(fileIdx, true); build(); kick(); });
+  if ('ResizeObserver' in window) { let w = 0, h = 0; new ResizeObserver(() => { const a = S.box.clientWidth, b = S.box.clientHeight; if (a !== w || b !== h) { w = a; h = b; build(); kick(); } }).observe(S.box); }
+  if ('IntersectionObserver' in window) new IntersectionObserver(es => { S.seen = es[0].isIntersecting; if (S.seen) kick(); }).observe(S.box);
+  addEventListener('scroll', onScroll, { passive: true });
+  addEventListener('resize', onScroll);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) kick(); });
+  calm.addEventListener('change', kick);
+  setInterval(clocks, 15000);
 })();
 </script>
