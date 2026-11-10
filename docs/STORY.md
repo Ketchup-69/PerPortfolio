@@ -39,9 +39,6 @@ Nothing here is final. `[?]` = I need Om to confirm or fill in.
 - Current role after Mar 2026? (Algomotive shows up in Om's setup.)
 - What role he wants next. Who the site is for.
 
-### Family
-- Older brother Bharat (diisruption.com) writes that his brother and sister are "still becoming themselves in real time, right in front of me." Optional easter egg: Om's site answers that line.
-
 ---
 
 ## 2. The throughline
