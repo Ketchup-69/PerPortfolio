@@ -1,0 +1,637 @@
+<title>Om Kashyap</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=Instrument+Sans:ital,wght@0,400..600;1,400..600&family=Martian+Mono:wght@300..500&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:light;
+  --paper:#F1F4F9;
+  --sheet:#FFFFFF;
+  --ink:#11131A;
+  --ink-2:#3F4558;
+  --ink-3:#687086;
+  --rule:#D3D9E4;
+  --accent:#3B28CC;
+  --display:"Bricolage Grotesque","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --body:"Instrument Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --t-micro:.6875rem;
+  --t-small:.875rem;
+  --t-body:1.0625rem;
+  --t-lede:1.375rem;
+  background:var(--paper);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 var(--t-body)/1.6 var(--body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+::selection{background:var(--accent);color:var(--sheet)}
+p,h1,h2,h3,dl,dd,ol,ul,figure{margin:0;padding:0}
+ol,ul{list-style:none}
+a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--accent);text-decoration-thickness:1.5px;text-underline-offset:.22em}
+a:hover{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:1px}
+canvas{display:block}
+
+.page{
+  --gl:max(16px,env(safe-area-inset-left,0px));
+  --gr:max(16px,env(safe-area-inset-right,0px));
+  padding-left:var(--gl);padding-right:var(--gr);padding-block:0 40px;
+}
+.grid{max-width:1120px;margin-inline:auto}
+.mono,.mark,.read,.toc,.k,.unit,.cap,.foot{font-family:var(--mono);font-size:var(--t-micro);line-height:1.6;letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.tbd{font-family:var(--mono);font-size:.82em;color:var(--ink-3);letter-spacing:0}
+
+/* ---------- rail: the portrait is the progress bar ---------- */
+.rail{
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:5;
+  margin-left:calc(var(--gl) * -1);margin-right:calc(var(--gr) * -1);
+  padding:8px var(--gr) 8px var(--gl);
+  background:var(--paper);border-bottom:1px solid var(--rule);
+  display:flex;align-items:center;gap:12px;
+}
+.pbox{flex:none;width:48px;height:60px}
+.read{flex:1;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:baseline;color:var(--ink-3)}
+.read-ch{grid-column:1;font-family:var(--display);font-size:1.0625rem;font-weight:600;letter-spacing:-.01em;color:var(--ink);line-height:1.3}
+.read-ch b{font:400 var(--t-micro)/1 var(--mono);color:var(--accent);margin-right:.5em}
+.read-px{grid-column:1}
+.read-pct{grid-column:2;grid-row:1 / span 2;align-self:center;color:var(--ink);font-size:.8125rem}
+.read-pct span{color:var(--ink-3);display:none}
+.read-note,.toc{display:none}
+
+main{min-width:0}
+.ch{padding-block:72px;border-top:1px solid var(--rule);scroll-margin-top:76px}
+.ch:first-child{border-top:0;padding-top:56px}
+.ch>*{max-width:65ch}
+.mark{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 18px;color:var(--ink-3);margin-bottom:20px}
+.mark .no{color:var(--accent);font-weight:500}
+.ramp{display:inline-flex;gap:.55em;color:var(--rule)}
+.ramp .on{color:var(--accent)}
+.ramp .was{color:var(--ink-3)}
+h1,h2{font-family:var(--display);font-weight:600;text-wrap:balance;letter-spacing:-.035em;line-height:.98}
+h1{font-size:clamp(2.75rem,6.4vw,5.25rem);max-width:13ch}
+h2{font-size:clamp(2.75rem,5.4vw,4.25rem)}
+.lede{font-size:var(--t-lede);line-height:1.4;letter-spacing:-.01em;margin-top:24px;text-wrap:pretty}
+.ch p+p{margin-top:.9em}
+.body{margin-top:20px;color:var(--ink-2)}
+.route{margin-top:28px;color:var(--ink-3);display:flex;flex-wrap:wrap;gap:2px 14px}
+.route b{font-weight:500;color:var(--ink)}
+.route i{font-style:normal;color:var(--accent)}
+
+/* spec list */
+.spec{margin-top:32px;border-bottom:1px solid var(--rule)}
+.spec>div{display:grid;grid-template-columns:7.5rem minmax(0,1fr);gap:16px;padding-block:11px;border-top:1px solid var(--rule);align-items:baseline}
+.k{color:var(--ink-3)}
+.spec dd{min-width:0}
+
+/* number + detail: same place in every chapter */
+.pd{margin-top:40px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 32px;align-items:start}
+.pd .num{font-family:var(--display);font-weight:600;font-size:clamp(3.25rem,6vw,4.5rem);line-height:.9;letter-spacing:-.04em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pd .num small{font-size:.38em;letter-spacing:-.01em;font-weight:500;margin-left:.15em}
+.pd>div{min-width:0;padding-top:4px}
+.pd .k{display:block;margin-bottom:2px}
+.pd p{font-size:var(--t-small);line-height:1.5;color:var(--ink-2)}
+.pd p+.k{margin-top:12px}
+
+/* case files */
+.files{margin-top:36px;max-width:none;border-bottom:1px solid var(--rule)}
+.file{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 20px;padding-block:18px;border-top:1px solid var(--rule);align-items:start}
+.file .k{grid-column:1 / -1}
+.file h3{font:600 1.1875rem/1.25 var(--display);letter-spacing:-.015em}
+.file p{font-size:var(--t-small);line-height:1.5;color:var(--ink-2);margin-top:4px;max-width:52ch}
+.file>div{min-width:0}
+.fig{text-align:right;font-family:var(--display);font-weight:600;font-size:1.75rem;line-height:1;letter-spacing:-.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.unit{display:block;margin-top:6px;color:var(--ink-3);font-weight:400;letter-spacing:.01em}
+.aside{margin-top:16px;font-size:var(--t-small);color:var(--ink-2)}
+.nowline{margin-top:28px;padding:14px 16px;border:1px solid var(--ink);display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline}
+.nowline .k{color:var(--accent)}
+
+/* dithered photo frames */
+.photos{margin-top:32px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.photos canvas{width:100%;height:auto;aspect-ratio:3/2;image-rendering:pixelated;background:var(--sheet);border:1px solid var(--rule)}
+.cap{margin-top:8px;color:var(--ink-3)}
+
+/* taste */
+.tracks{font-family:var(--mono);font-size:var(--t-micro);font-variant-numeric:tabular-nums}
+.tracks li{display:grid;grid-template-columns:2em minmax(0,1fr) auto;gap:10px;padding-block:5px;color:var(--ink-3)}
+.tracks li+li{border-top:1px dashed var(--rule)}
+.stamps{display:flex;flex-wrap:wrap;gap:14px;margin-top:6px;filter:drop-shadow(0 0 .5px rgba(17,19,26,.55))}
+.stamp{position:relative;width:80px;height:110px;background:radial-gradient(circle at center,transparent 2.6px,var(--sheet) 3.1px) -5px -5px / 10px 10px}
+.stamp::before{content:"";position:absolute;inset:5px;background:var(--sheet)}
+.stamp div{position:absolute;inset:10px;border:1px solid var(--ink-2);display:flex;flex-direction:column;justify-content:space-between;padding:5px 6px;font:400 .5625rem/1.2 var(--mono);color:var(--ink-3)}
+.stamp b{font:600 1.75rem/1 var(--display);letter-spacing:-.04em;color:var(--ink);font-variant-numeric:tabular-nums}
+.stamp b small{font-size:.45em;font-weight:500;color:var(--ink-3);letter-spacing:0}
+.stamp:first-child b{color:var(--accent)}
+
+/* write */
+.links{margin-top:32px;border-bottom:1px solid var(--ink)}
+.links a{display:grid;grid-template-columns:7.5rem minmax(0,1fr) auto;gap:16px;align-items:baseline;padding-block:16px;border-top:1px solid var(--ink);text-decoration:none}
+.links a span:nth-child(2){font:600 1.375rem/1.2 var(--display);letter-spacing:-.02em;overflow-wrap:anywhere}
+.links a:hover .k,.links a:hover .go{color:var(--accent)}
+.go{font-family:var(--mono);font-size:var(--t-small)}
+.final{margin-top:40px}
+.final .pbox{width:min(100%,240px);height:auto;aspect-ratio:4/5}
+.ch:last-child{min-height:86vh}
+.foot{max-width:none;margin-top:72px;padding-top:14px;border-top:1px solid var(--rule);color:var(--ink-3);display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 24px}
+
+@media (max-width:480px){
+  .spec>div{grid-template-columns:5.75rem minmax(0,1fr);gap:12px}
+  .links a{grid-template-columns:minmax(0,1fr) auto;gap:2px 12px}
+  .links a .k{grid-column:1 / -1}
+  .pd{gap:8px 20px}
+}
+
+@media (min-width:900px){
+  .grid{display:grid;grid-template-columns:320px minmax(0,1fr);column-gap:clamp(56px,7vw,112px);padding-inline:clamp(0px,2.5vw,32px)}
+  .rail{top:calc(36px + env(safe-area-inset-top,0px));align-self:start;margin:36px 0 0;padding:0;background:none;border:0;display:block}
+  .pbox{width:min(320px,calc((100vh - 290px) * .8));height:auto;aspect-ratio:4/5}
+  .read{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;margin-top:14px;padding-top:12px;border-top:1px solid var(--ink)}
+  .read-ch{font-size:1.25rem}
+  .read-pct{grid-row:1;align-self:baseline;font-size:var(--t-micro)}
+  .read-pct span{display:inline}
+  .read-px{grid-column:1}
+  .read-note{display:block;grid-column:2;grid-row:2;color:var(--ink-3);font-size:.625rem;font-family:var(--mono)}
+  .toc{display:grid;grid-template-columns:1fr 1fr;grid-auto-flow:column;grid-template-rows:repeat(4,auto);gap:0 16px;margin-top:20px;padding-top:10px;border-top:1px solid var(--rule)}
+  .toc a{display:block;padding-block:3px;color:var(--ink-3);text-decoration:none}
+  .toc a b{font-weight:400;margin-right:.7em}
+  .toc a:hover{color:var(--ink)}
+  .toc a[aria-current]{color:var(--ink)}
+  .toc a[aria-current] b{color:var(--accent)}
+  .ch{padding-block:clamp(88px,13vh,136px);scroll-margin-top:0}
+  .ch:first-child{padding-top:clamp(88px,17vh,168px);min-height:92vh}
+  .file{grid-template-columns:3.25rem minmax(0,1fr) auto}
+  .file .k{grid-column:auto;padding-top:5px}
+  .stamp{width:100px;height:130px}
+  .stamp b{font-size:2.25rem}
+  .final{display:none}
+}
+</style>
+
+<div class="page">
+<div class="grid">
+
+  <aside class="rail" aria-label="progress">
+    <div class="pbox" id="pbox"><canvas id="portrait" role="img" aria-label="Dithered portrait of Om. It gains resolution as you read."></canvas></div>
+    <div class="read">
+      <p class="read-ch"><b id="chNo">00</b><span id="chName">hello</span></p>
+      <p class="read-pct"><span>resolution </span><i id="pct" style="font-style:normal">0</i>%</p>
+      <p class="read-px"><span id="pxN">0</span> / <span id="pxT">0</span> px</p>
+      <p class="read-note">[placeholder portrait]</p>
+    </div>
+    <nav class="toc" aria-label="chapters" id="toc"></nav>
+  </aside>
+
+  <main>
+    <section class="ch" id="hello" data-name="hello">
+      <p class="mark"><span class="no">00</span><span class="ramp"></span><span>om kashyap vedula</span></p>
+      <h1>hey, i'm om. i make messy things work.</h1>
+      <p class="lede">payroll, bug reports, a beach full of trash. i like the unglamorous stuff. sometimes it even comes out beautiful.</p>
+      <p class="route mono"><span><b>vizag</b> 17.68° N, 83.21° E</span><i aria-hidden="true">→</i><span><b>dubai</b> 25.20° N, 55.27° E</span></p>
+      <div class="pd">
+        <span class="num">8</span>
+        <div>
+          <span class="k">the number</span>
+          <p>short chapters. about four minutes, start to finish.</p>
+          <span class="k">the detail</span>
+          <p>the portrait starts as noise. it gains resolution as you read, so it also tells you how far along you are.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="ch" id="vizag" data-name="vizag">
+      <p class="mark"><span class="no">01</span><span class="ramp"></span><span>17.68° N, 83.21° E</span><span>2010–2023</span></p>
+      <h2>vizag</h2>
+      <p class="lede">13 years at one school in vizag. somewhere in there they handed me the captain's armband and i never really gave it back.</p>
+      <dl class="spec">
+        <div><dt class="k">school</dt><dd>ETASI Timpany, 2010 to 2023</dd></div>
+        <div><dt class="k">house</dt><dd>jupiter. house captain.</dd></div>
+        <div><dt class="k">basketball</dt><dd>school team captain</dd></div>
+        <div><dt class="k">state, u16</dt><dd>2× junior state athlete, basketball</dd></div>
+        <div><dt class="k">state, u18</dt><dd>3× senior state athlete, football + basketball</dd></div>
+        <div><dt class="k">then</dt><dd>BBA at GITAM, 2023 to 2026</dd></div>
+      </dl>
+      <div class="pd">
+        <span class="num">5×</span>
+        <div>
+          <span class="k">the number</span>
+          <p>state-level selections across two sports, before finishing school.</p>
+          <span class="k">the detail</span>
+          <p>captaincy is mostly logistics. who's late, who's injured, who has the ball pump.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="ch" id="work" data-name="work">
+      <p class="mark"><span class="no">02</span><span class="ramp"></span><span>12.2023 – 03.2026</span><span>case files, text only</span></p>
+      <h2>work</h2>
+      <p class="lede">business development and operations at MicroGrid Technologies, the enterprise agentic AI company behind Colloki. all of it during a full-time degree.</p>
+      <ol class="files">
+        <li class="file"><span class="k">f/01</span>
+          <div><h3>lending platform spec</h3><p>co-authored the PRD for a fintech platform that splits loan disbursements across banks. requirements through first rollout.</p></div>
+          <span class="fig">0 → 1<span class="unit">spec to rollout</span></span></li>
+        <li class="file"><span class="k">f/02</span>
+          <div><h3>breaking things on purpose</h3><p>structured QA across 3 products. every bug written up so someone else could reproduce it.</p></div>
+          <span class="fig">14<span class="unit">bugs, pre-delivery</span></span></li>
+        <li class="file"><span class="k">f/03</span>
+          <div><h3>HR system from zero</h3><p>built a full HRMS on SharePoint. no training, no support, a lot of tabs open.</p></div>
+          <span class="fig">0<span class="unit">hours of training</span></span></li>
+        <li class="file"><span class="k">f/04</span>
+          <div><h3>5,000+ leads</h3><p>lead gen for a US compliance service under the Corporate Transparency Act. 3M+ ad impressions.</p></div>
+          <span class="fig">5,000+<span class="unit">leads</span></span></li>
+        <li class="file"><span class="k">f/05</span>
+          <div><h3>the awards run</h3><p>found the awards, ran the tracker, proofread every submission. 2 Gold Stevie APAC among the wins. 11 media features, Fortune included.</p></div>
+          <span class="fig">17<span class="unit">wins</span></span></li>
+      </ol>
+      <p class="aside">also ran payroll end to end, reporting to the CEO.</p>
+      <p class="nowline"><span class="k">now</span><span>Algomotive, Dubai. since 23.09.2026. <span class="tbd">[role]</span></span></p>
+      <div class="pd">
+        <span class="num">27<small>mo</small></span>
+        <div>
+          <span class="k">the number</span>
+          <p>months of real work, done alongside lectures and exams.</p>
+          <span class="k">the detail</span>
+          <p>payroll taught me the most. nobody thanks you when it's right. everybody finds you when it's wrong.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="ch" id="coast" data-name="coast">
+      <p class="mark"><span class="no">03</span><span class="ramp"></span><span>jalaripeta + rushikonda</span><span>17.68° N, 83.21° E</span></p>
+      <h2>coast</h2>
+      <p class="lede">we cleaned two beaches in vizag. then we kept the trash.</p>
+      <p class="body">everything that came off the sand at jalaripeta and rushikonda got kept. it went back up as a life-size whale shark and a manta ray. messy thing, made to work, made beautiful. this is the one time all three happened in order.</p>
+      <div class="photos">
+        <figure><canvas width="144" height="96" data-scene="whale" role="img" aria-label="Placeholder: whale shark sculpture"></canvas><figcaption class="cap">photo: whale shark, jalaripeta</figcaption></figure>
+        <figure><canvas width="144" height="96" data-scene="manta" role="img" aria-label="Placeholder: manta ray sculpture"></canvas><figcaption class="cap">photo: manta ray</figcaption></figure>
+      </div>
+      <div class="pd">
+        <span class="num">3,382<small>kg</small></span>
+        <div>
+          <span class="k">the number</span>
+          <p>of waste removed from the two beaches.</p>
+          <span class="k">the detail</span>
+          <p>the sculptures get photographed. the part that matters is the bending down.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="ch" id="courts" data-name="courts">
+      <p class="mark"><span class="no">04</span><span class="ramp"></span><span>three sports</span><span>latest result 2025</span></p>
+      <h2>courts</h2>
+      <p class="lede">i've been on a court or a pitch for most of my life. the sport keeps changing. the wanting to win part doesn't.</p>
+      <dl class="spec">
+        <div><dt class="k">basketball</dt><dd>school captain. state athlete at U16 and U18.</dd></div>
+        <div><dt class="k">football</dt><dd>state athlete, U18.</dd></div>
+        <div><dt class="k">pickleball</dt><dd>quarter-finalist, AP State Pickleball Championship, singles, 2025.</dd></div>
+      </dl>
+      <div class="pd">
+        <span class="num">QF</span>
+        <div>
+          <span class="k">the number</span>
+          <p>last eight in the state, singles, in the newest of the three.</p>
+          <span class="k">the detail</span>
+          <p>i'm still a little annoyed about that quarter-final.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="ch" id="taste" data-name="taste">
+      <p class="mark"><span class="no">05</span><span class="ramp"></span><span>off the clock</span></p>
+      <h2>taste</h2>
+      <p class="lede">what i look at and listen to when nobody's asking for a deliverable.</p>
+      <dl class="spec">
+        <div><dt class="k">music</dt><dd>
+          <ol class="tracks">
+            <li><span>01</span><span>[track] · [artist]</span><span>[0:00]</span></li>
+            <li><span>02</span><span>[track] · [artist]</span><span>[0:00]</span></li>
+            <li><span>03</span><span>[track] · [artist]</span><span>[0:00]</span></li>
+          </ol></dd></div>
+        <div><dt class="k">photography</dt><dd>i shoot <span class="tbd">[what he shoots, one line]</span></dd></div>
+        <div><dt class="k">art</dt><dd>avant-garde and digital. the stranger the better. <span class="tbd">[two names he keeps going back to]</span></dd></div>
+        <div><dt class="k">stamps</dt><dd>
+          <div class="stamps" aria-label="four stamp binders, placeholders">
+            <div class="stamp"><div><span>binder</span><b>1<small>/4</small></b><span>[sealed]</span></div></div>
+            <div class="stamp"><div><span>binder</span><b>2<small>/4</small></b><span>[sealed]</span></div></div>
+            <div class="stamp"><div><span>binder</span><b>3<small>/4</small></b><span>[sealed]</span></div></div>
+            <div class="stamp"><div><span>binder</span><b>4<small>/4</small></b><span>[sealed]</span></div></div>
+          </div></dd></div>
+      </dl>
+      <div class="pd">
+        <span class="num">4</span>
+        <div>
+          <span class="k">the number</span>
+          <p>binders of stamps.</p>
+          <span class="k">the detail</span>
+          <p>sealed since 7th grade, still in vizag. i have not checked on them. i assume they're fine.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="ch" id="now" data-name="now">
+      <p class="mark"><span class="no">06</span><span class="ramp"></span><span>25.20° N, 55.27° E</span><span>since 21.09.2026</span></p>
+      <h2>now</h2>
+      <p class="lede">landed in dubai on 21.09.2026. started at Algomotive two days later.</p>
+      <dl class="spec">
+        <div><dt class="k">where</dt><dd>dubai</dd></div>
+        <div><dt class="k">work</dt><dd>Algomotive, <span class="tbd">[role]</span>, since 23.09.2026</dd></div>
+        <div><dt class="k">learning</dt><dd>building small things with Claude Code and Figma. calling me a developer would be generous. calling me useful would be accurate.</dd></div>
+        <div><dt class="k">open to</dt><dd><span class="tbd">[one line: what he's open to]</span></dd></div>
+        <div><dt class="k">next</dt><dd>undecided, and fine with it. useful in the meantime.</dd></div>
+      </dl>
+      <div class="pd">
+        <span class="num">2</span>
+        <div>
+          <span class="k">the number</span>
+          <p>days between landing and day one.</p>
+          <span class="k">the detail</span>
+          <p>BBA finished in august. new country in september. the suitcase is unpacked, mostly.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="ch" id="write" data-name="write">
+      <p class="mark"><span class="no">07</span><span class="ramp"></span><span>resolution 100%</span></p>
+      <h2>write</h2>
+      <p class="lede">you've seen the full picture now. say hi.</p>
+      <div class="final"><div class="pbox" id="pboxFinal"><canvas id="portraitFinal" aria-hidden="true"></canvas></div></div>
+      <div class="links">
+        <a href="https://www.linkedin.com/in/vomkashyap"><span class="k">linkedin</span><span>in/vomkashyap</span><span class="go" aria-hidden="true">↗</span></a>
+        <a href="https://github.com/Ketchup-69"><span class="k">github</span><span>@Ketchup-69</span><span class="go" aria-hidden="true">↗</span></a>
+        <a href="../assets/Om_Kashyap_Vedula_Resume.pdf"><span class="k">resume</span><span>one page, pdf</span><span class="go" aria-hidden="true">↓</span></a>
+      </div>
+      <div class="pd">
+        <span class="num">100<small>%</small></span>
+        <div>
+          <span class="k">the number</span>
+          <p>resolved. that's all of it.</p>
+          <span class="k">the detail</span>
+          <p>linkedin gets the fastest reply. a first message of just "hi" is completely fine.</p>
+        </div>
+      </div>
+      <p class="foot"><span>om kashyap vedula</span><span>vizag → dubai</span><span>updated <span class="tbd">[DD.MM.YYYY]</span></span></p>
+    </section>
+  </main>
+
+</div>
+</div>
+
+<script>
+/* Set to an image URL or data URI to replace the procedural placeholder. */
+const PORTRAIT_SRC = '';
+
+(() => {
+  const INK = 0xFFCC283B;   /* --accent #3B28CC as ABGR */
+  const SLATE = 0xFF58453F; /* --ink-2 #3F4558 as ABGR */
+  const BAYER = [0,32,8,40,2,34,10,42,48,16,56,24,50,18,58,26,12,44,4,36,14,46,6,38,60,28,52,20,62,30,54,22,
+                 3,35,11,43,1,33,9,41,51,19,59,27,49,17,57,25,15,47,7,39,13,45,5,37,63,31,55,23,61,29,53,21];
+  const thresh = (x, y) => (BAYER[(y & 7) * 8 + (x & 7)] + .5) / 64;
+  const grey = v => { v = Math.round(v * 255); return `rgb(${v},${v},${v})`; };
+  const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+  const ell = (x, cx, cy, rx, ry, rot) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot || 0, 0, 7); x.fill(); };
+  const fmt = n => n.toLocaleString('en-US');
+
+  /* ---- placeholder portrait: soft head and shoulders, lit from upper left ---- */
+  function placeholder() {
+    const c = mk(320, 400), x = c.getContext('2d');
+    let g = x.createRadialGradient(100, 100, 20, 160, 200, 340);
+    g.addColorStop(0, grey(1)); g.addColorStop(.35, grey(.97)); g.addColorStop(1, grey(.87));
+    x.fillStyle = g; x.fillRect(0, 0, 320, 400);
+    g = x.createLinearGradient(20, 300, 300, 400);
+    g.addColorStop(0, grey(.46)); g.addColorStop(1, grey(.08));
+    x.fillStyle = g; ell(x, 160, 456, 170, 128);
+    g = x.createLinearGradient(124, 0, 198, 0);
+    g.addColorStop(0, grey(.66)); g.addColorStop(1, grey(.3));
+    x.fillStyle = g; ell(x, 160, 300, 33, 62);
+    x.fillStyle = 'rgba(0,0,0,.4)'; ell(x, 165, 286, 36, 13);
+    x.fillStyle = grey(.1); ell(x, 160, 150, 75, 72);
+    g = x.createRadialGradient(130, 168, 6, 160, 198, 118);
+    g.addColorStop(0, grey(.94)); g.addColorStop(.55, grey(.66)); g.addColorStop(1, grey(.3));
+    x.fillStyle = g; ell(x, 160, 198, 63, 84);
+    x.fillStyle = grey(.1); ell(x, 166, 116, 70, 38, -.12);
+    x.fillStyle = 'rgba(0,0,0,.5)'; ell(x, 136, 193, 11, 4); ell(x, 187, 193, 11, 4);
+    x.fillStyle = 'rgba(0,0,0,.2)'; ell(x, 169, 222, 6, 17);
+    x.fillStyle = 'rgba(0,0,0,.4)'; ell(x, 163, 251, 17, 3.5);
+    return c;
+  }
+
+  /* ---- box-filtered luminance grid from any source ---- */
+  function lumGrid(src, gw, gh) {
+    const a = gw / gh; let sw = src.width, sh = src.height;
+    if (sw / sh > a) sw = sh * a; else sh = sw / a;
+    const sx = (src.width - sw) / 2, sy = (src.height - sh) * .25;
+    const k = Math.max(1, 1 << Math.floor(Math.log2(Math.max(1, sw / gw))));
+    const c = mk(gw * k, gh * k), x = c.getContext('2d', { willReadFrequently: true });
+    x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+    x.drawImage(src, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    const d = x.getImageData(0, 0, c.width, c.height).data, out = new Float32Array(gw * gh);
+    for (let y = 0; y < gh; y++) for (let X = 0; X < gw; X++) {
+      let s = 0;
+      for (let j = 0; j < k; j++) for (let i = 0; i < k; i++) {
+        const p = ((y * k + j) * c.width + X * k + i) * 4;
+        s += d[p] * .299 + d[p + 1] * .587 + d[p + 2] * .114;
+      }
+      out[y * gw + X] = s / (k * k * 255);
+    }
+    return out;
+  }
+
+  function hash(x, y, l) {
+    let n = Math.imul(x + 1, 374761393) ^ Math.imul(y + 1, 668265263) ^ Math.imul(l + 1, 1442695041);
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  }
+
+  /* ---- the portrait: a quadtree of dither cells that refine with progress ----
+     Coarse cells split into four finer ones in a fixed pseudo-random order,
+     edges first, face last. Dots only ever get finer, so scrolling stays calm. */
+  class Portrait {
+    constructor(canvas, box, cfg) { this.cv = canvas; this.box = box; this.cfg = cfg; this.ok = false; this.count = 0; this.total = 0; }
+    build(src) {
+      const { cell, top } = this.cfg(), bw = this.box.clientWidth, bh = this.box.clientHeight;
+      this.ok = false;
+      if (!bw || !bh) return;
+      const gw = Math.floor(bw / cell / top) * top, gh = Math.floor(bh / cell / top) * top;
+      if (!gw || !gh) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 3);
+      this.cv.style.width = gw * cell + 'px'; this.cv.style.height = gh * cell + 'px';
+      this.cv.width = Math.round(gw * cell * dpr); this.cv.height = Math.round(gh * cell * dpr);
+      this.ctx = this.cv.getContext('2d');
+      this.buf = mk(gw, gh); this.bctx = this.buf.getContext('2d');
+      this.img = this.bctx.createImageData(gw, gh); this.px = new Uint32Array(this.img.data.buffer);
+      this.gw = gw; this.total = gw * gh;
+      const lv = []; let lum = lumGrid(src, gw, gh), w = gw, h = gh;
+      for (let s = 1; s <= top; s *= 2) {
+        lv.unshift({ s, w, h, lum });
+        if (s < top) {
+          const nw = w / 2, nh = h / 2, nl = new Float32Array(nw * nh);
+          for (let y = 0; y < nh; y++) for (let x = 0; x < nw; x++) {
+            const i = y * 2 * w + x * 2;
+            nl[y * nw + x] = (lum[i] + lum[i + 1] + lum[i + w] + lum[i + w + 1]) / 4;
+          }
+          lum = nl; w = nw; h = nh;
+        }
+      }
+      const n = lv.length - 1;
+      lv.forEach((L, li) => {
+        L.on = new Uint8Array(L.w * L.h); L.thr = new Float32Array(L.w * L.h);
+        const a = Math.max(0, li / n * .9 - .08), b = (li + 1) / n * .9 + .1;
+        for (let y = 0; y < L.h; y++) for (let x = 0; x < L.w; x++) {
+          const i = y * L.w + x;
+          L.on[i] = L.lum[i] < thresh(x, y) ? 1 : 0;
+          const dx = (x + .5) / L.w - .5, dy = (y + .5) / L.h - .47;
+          const near = 1 - Math.min(1, Math.hypot(dx, dy * .8) / .6);
+          L.thr[i] = a + (.55 * hash(x, y, li) + .45 * near) * (b - a);
+        }
+      });
+      this.lv = lv; this.n = n; this.last = -1; this.ok = true;
+    }
+    draw(p) {
+      if (!this.ok || p === this.last) return;
+      this.last = p;
+      const { lv, n, px, gw } = this; let count = 0;
+      px.fill(0);
+      const rec = (li, cx, cy) => {
+        const L = lv[li], i = cy * L.w + cx;
+        if (li < n && p > L.thr[i]) {
+          const x = cx * 2, y = cy * 2;
+          rec(li + 1, x, y); rec(li + 1, x + 1, y); rec(li + 1, x, y + 1); rec(li + 1, x + 1, y + 1);
+          return;
+        }
+        count++;
+        if (!L.on[i]) return;
+        const s = L.s, d = s > 1 ? s >> 1 : 1, o = s >= 4 ? s >> 2 : 0, x0 = cx * s + o, y0 = cy * s + o;
+        for (let yy = 0; yy < d; yy++) for (let xx = 0; xx < d; xx++) px[(y0 + yy) * gw + x0 + xx] = INK;
+      };
+      for (let y = 0; y < lv[0].h; y++) for (let x = 0; x < lv[0].w; x++) rec(0, x, y);
+      this.count = count;
+      this.bctx.putImageData(this.img, 0, 0);
+      const c = this.ctx;
+      c.clearRect(0, 0, this.cv.width, this.cv.height);
+      c.imageSmoothingEnabled = false;
+      c.drawImage(this.buf, 0, 0, this.cv.width, this.cv.height);
+    }
+  }
+
+  /* ---- chapters, ramp markers, table of contents ---- */
+  const $ = id => document.getElementById(id);
+  const chapters = [...document.querySelectorAll('.ch')];
+  const RAMP = ['.', ':', '-', '=', '+', '*', '#', '@'];
+  const toc = $('toc');
+  chapters.forEach((ch, i) => {
+    const r = ch.querySelector('.ramp');
+    r.setAttribute('aria-hidden', 'true');
+    r.innerHTML = RAMP.map((g, j) => `<span class="${j === i ? 'on' : j < i ? 'was' : ''}">${g}</span>`).join('');
+    const a = document.createElement('a');
+    a.href = '#' + ch.id;
+    a.innerHTML = `<b>0${i}</b>${ch.dataset.name}`;
+    toc.appendChild(a);
+  });
+  const tocLinks = [...toc.children];
+
+  const wide = matchMedia('(min-width:900px)');
+  const calm = matchMedia('(prefers-reduced-motion:reduce)');
+  const main = new Portrait($('portrait'), $('pbox'), () => wide.matches ? { cell: 2, top: 8 } : { cell: 1, top: 4 });
+  const fin = new Portrait($('portraitFinal'), $('pboxFinal'), () => ({ cell: 2, top: 8 }));
+  const all = [main, fin];
+
+  let src = placeholder(), tops = [], end = 1, target = 0, shown = -1, cur = -1, raf = 0;
+  const el = { no: $('chNo'), name: $('chName'), pct: $('pct'), n: $('pxN'), t: $('pxT') };
+  const shownText = {};
+  const put = (k, v) => { if (shownText[k] !== v) { shownText[k] = v; el[k].textContent = v; } };
+
+  function measure() {
+    const y = window.scrollY, vh = window.innerHeight;
+    tops = chapters.map(c => c.getBoundingClientRect().top + y);
+    const max = document.documentElement.scrollHeight - vh;
+    end = Math.max(1, Math.min(max, tops[tops.length - 1] - vh * .3));
+  }
+  function read() {
+    const y = window.scrollY, line = y + window.innerHeight * .4;
+    let i = 0;
+    for (let k = 0; k < tops.length; k++) if (tops[k] <= line) i = k;
+    if (i !== cur) {
+      cur = i;
+      put('no', '0' + i); put('name', chapters[i].dataset.name);
+      tocLinks.forEach((a, k) => k === i ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current'));
+    }
+    target = calm.matches ? i / (chapters.length - 1) : Math.min(1, Math.max(0, y / end));
+    kick();
+  }
+  function frame() {
+    raf = 0;
+    const d = target - shown;
+    shown = (calm.matches || Math.abs(d) < .0015) ? target : shown + d * .14;
+    all.forEach(p => p.draw(shown));
+    put('pct', String(Math.round(shown * 100)));
+    put('n', fmt(main.count)); put('t', fmt(main.total));
+    if (shown !== target) raf = requestAnimationFrame(frame);
+  }
+  function kick() { if (!raf && shown !== target) raf = requestAnimationFrame(frame); }
+  function rebuild() {
+    all.forEach(p => p.build(src));
+    measure(); shown = -1; read();
+  }
+
+  /* ---- dithered photo placeholders ---- */
+  function scene(cv) {
+    const w = cv.width, h = cv.height, x = cv.getContext('2d'), kind = cv.dataset.scene;
+    let g = x.createLinearGradient(0, 0, 0, h * .5);
+    g.addColorStop(0, grey(.99)); g.addColorStop(1, grey(.84));
+    x.fillStyle = g; x.fillRect(0, 0, w, h);
+    g = x.createLinearGradient(0, h * .5, 0, h * .66);
+    g.addColorStop(0, grey(.5)); g.addColorStop(1, grey(.7));
+    x.fillStyle = g; x.fillRect(0, h * .5, w, h * .16);
+    g = x.createLinearGradient(0, h * .66, 0, h);
+    g.addColorStop(0, grey(.9)); g.addColorStop(1, grey(.78));
+    x.fillStyle = g; x.fillRect(0, h * .66, w, h);
+    g = x.createLinearGradient(0, h * .3, 0, h * .8);
+    g.addColorStop(0, grey(.3)); g.addColorStop(1, grey(.04));
+    x.fillStyle = g;
+    const poly = pts => { x.beginPath(); pts.forEach((p, i) => i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])); x.fill(); };
+    if (kind === 'whale') {
+      ell(x, 66, 56, 46, 13);
+      poly([[104, 56], [128, 36], [122, 56], [130, 74]]);
+      poly([[62, 45], [72, 30], [80, 45]]);
+      poly([[52, 64], [60, 80], [70, 66]]);
+      x.fillStyle = grey(1);
+      for (let j = 0; j < 3; j++) for (let i = 0; i < 9; i++) x.fillRect(34 + i * 8 + (j % 2) * 4, 49 + j * 5, 2, 2);
+    } else {
+      poly([[14, 52], [72, 26], [130, 52], [72, 66]]);
+      poly([[60, 30], [56, 20], [66, 28]]); poly([[84, 30], [88, 20], [78, 28]]);
+      x.fillRect(71, 64, 2, 24);
+    }
+    x.fillStyle = 'rgba(0,0,0,.3)'; ell(x, 72, 84, 50, 4);
+    const im = x.getImageData(0, 0, w, h), d = im.data, px = new Uint32Array(d.buffer);
+    for (let y = 0; y < h; y++) for (let X = 0; X < w; X++) {
+      const i = y * w + X, l = (d[i * 4] * .299 + d[i * 4 + 1] * .587 + d[i * 4 + 2] * .114) / 255;
+      px[i] = l < thresh(X, y) ? SLATE : 0;
+    }
+    x.putImageData(im, 0, 0);
+  }
+  document.querySelectorAll('canvas[data-scene]').forEach(scene);
+
+  /* ---- wire up ---- */
+  addEventListener('scroll', read, { passive: true });
+  addEventListener('resize', () => { measure(); read(); });
+  addEventListener('load', () => { measure(); read(); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { measure(); read(); });
+  if ('ResizeObserver' in window) {
+    let bw = 0;
+    new ResizeObserver(() => { const w = $('pbox').clientWidth + $('pboxFinal').clientWidth * 1000; if (w !== bw) { bw = w; rebuild(); } }).observe($('pbox'));
+  }
+  wide.addEventListener('change', rebuild);
+  calm.addEventListener('change', read);
+  rebuild();
+
+  if (PORTRAIT_SRC) {
+    const im = new Image();
+    im.crossOrigin = 'anonymous';
+    im.onload = () => {
+      try { const c = mk(im.naturalWidth, im.naturalHeight); c.getContext('2d').drawImage(im, 0, 0); c.getContext('2d').getImageData(0, 0, 1, 1); src = c; rebuild(); }
+      catch (e) { /* tainted or unreadable: keep the placeholder */ }
+    };
+    im.src = PORTRAIT_SRC;
+  }
+})();
+</script>
